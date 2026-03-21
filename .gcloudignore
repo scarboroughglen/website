@@ -1,0 +1,52 @@
+# This file specifies files that are intentionally untracked by Cloud Build
+# See https://cloud.google.com/sdk/gcloud/reference/topic/gcloudignore
+
+.gcloudignore
+.git
+.gitignore
+
+# Node
+node_modules/
+npm-debug.log
+
+# Local development
+.env
+.env.local
+data/
+*.db
+*.db-journal
+
+# Docker
+.dockerignore
+docker-compose*.yml
+Dockerfile.dev
+
+# Documentation
+*.md
+!README.md
+
+# Tests
+tests/
+test-results/
+*.test.ts
+*.test.js
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+.cache/

@@ -1,0 +1,87 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  unitId    String
+  unit      Unit     @relation(fields: [unitId], references: [id])
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  posts     Post[]
+}
+
+model Unit {
+  id          String   @id @default(uuid())
+  condo       String
+  unitNumber  String
+  inviteCode  String   @unique
+  inviteUsed  Boolean  @default(false)
+  users       User[]
+  createdAt   DateTime @default(now())
+}
+
+model MagicToken {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Thread {
+  id        String   @id @default(uuid())
+  title     String
+  section   String
+  userId    String
+  createdAt DateTime @default(now())
+  posts     Post[]
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  threadId  String
+  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  filename    String
+  description String?  // Auto-extracted or manually entered
+  section     String
+  filepath    String
+  createdAt   DateTime @default(now())
+
+  // Google Drive sync fields (optional)
+  driveFileId  String?  @unique  // Google Drive file ID
+  driveName    String?           // Original filename in Drive
+  lastSyncedAt DateTime?         // Last sync timestamp
+
+  downloads   DownloadLog[]
+}
+
+model DownloadLog {
+  id          String   @id @default(uuid())
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId      String
+  userEmail   String
+  trackingId  String   @unique
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([documentId])
+  @@index([userId])
+  @@index([trackingId])
+}

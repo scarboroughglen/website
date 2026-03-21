@@ -1,0 +1,87 @@
+# Google Cloud Build configuration for deploying to Cloud Run
+# Trigger: gcloud builds submit --config cloudbuild.yaml
+
+steps:
+  # Step 1: Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:latest'
+      - '.'
+
+  # Step 2: Push the image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}'
+
+  # Step 3: Run database migrations
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # This will run migrations on the deployed instance
+        # For initial deployment, migrations run in docker-entrypoint.sh
+        echo "Migrations will run automatically on container startup"
+
+  # Step 4: Deploy to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--memory=${_MEMORY}'
+      - '--cpu=${_CPU}'
+      - '--min-instances=${_MIN_INSTANCES}'
+      - '--max-instances=${_MAX_INSTANCES}'
+      - '--timeout=${_TIMEOUT}'
+      - '--set-env-vars=NODE_ENV=production'
+      - '--set-env-vars=STORAGE_PROVIDER=${_STORAGE_PROVIDER}'
+      - '--set-env-vars=S3_ENDPOINT=${_S3_ENDPOINT}'
+      - '--set-env-vars=S3_PORT=${_S3_PORT}'
+      - '--set-env-vars=S3_USE_SSL=${_S3_USE_SSL}'
+      - '--set-env-vars=S3_REGION=${_S3_REGION}'
+      - '--set-secrets=DATABASE_URL=database-url:latest'
+      - '--set-secrets=S3_ACCESS_KEY=s3-access-key:latest'
+      - '--set-secrets=S3_SECRET_KEY=s3-secret-key:latest'
+      - '--set-secrets=OPENAI_API_KEY=openai-api-key:latest'
+      - '--set-secrets=GEMINI_API_KEY=gemini-api-key:latest'
+      - '--vpc-connector=${_VPC_CONNECTOR}'
+      - '--vpc-egress=${_VPC_EGRESS}'
+
+# Substitution variables (can be overridden via --substitutions flag)
+substitutions:
+  _REGION: us-central1
+  _REPOSITORY: hoa-portal
+  _SERVICE_NAME: hoa-portal
+  _MEMORY: 512Mi
+  _CPU: '1'
+  _MIN_INSTANCES: '0'
+  _MAX_INSTANCES: '10'
+  _TIMEOUT: '300'
+  _STORAGE_PROVIDER: aws
+  _S3_ENDPOINT: s3.amazonaws.com
+  _S3_PORT: '443'
+  _S3_USE_SSL: 'true'
+  _S3_REGION: us-east-1
+  _VPC_CONNECTOR: ''  # Leave empty if not using VPC
+  _VPC_EGRESS: all-traffic
+
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:latest'
+
+timeout: '1200s'

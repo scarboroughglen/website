@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        - HTTP_PROXY=${HTTP_PROXY}
+        - HTTPS_PROXY=${HTTPS_PROXY}
+        - NO_PROXY=${NO_PROXY}
+        - http_proxy=${http_proxy}
+        - https_proxy=${https_proxy}
+        - no_proxy=${no_proxy}
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - DATABASE_URL=file:/app/data/dev.db
+      - NODE_ENV=development
+      - HTTP_PROXY=${HTTP_PROXY}
+      - HTTPS_PROXY=${HTTPS_PROXY}
+      - NO_PROXY=${NO_PROXY}
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - no_proxy=${no_proxy}
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run dev"
