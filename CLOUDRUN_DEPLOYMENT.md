@@ -1,44 +1,87 @@
 # 🚀 Google Cloud Run Deployment Guide
 
-This guide walks through deploying the HOA Portal to Google Cloud Run with a custom domain from GoDaddy.
+Deploy the HOA Portal to Google Cloud Run with SQLite, Cloud Storage, and a custom GoDaddy domain.
 
-## 📋 Prerequisites
+## 📋 Architecture Overview
 
-1. Google Cloud Project with billing enabled
-2. `gcloud` CLI installed and authenticated
-3. Domain registered with GoDaddy
-4. Docker running locally for testing
-
-## 🏗️ Architecture Overview
+```
+GoDaddy DNS → Cloud Run (container) → SQLite (on Cloud Storage volume)
+                     ↓
+              S3 Buckets (GCS or AWS) for PDFs
+```
 
 **Production Stack:**
 - **Compute**: Google Cloud Run (serverless containers)
-- **Database**: Cloud SQL (PostgreSQL) - SQLite doesn't work on Cloud Run
-- **Storage**: Google Cloud Storage (S3-compatible) OR AWS S3
+- **Database**: SQLite stored on a Cloud Storage volume (persistent, simple)
+- **File Storage**: Google Cloud Storage (S3-compatible)
 - **Secrets**: Google Secret Manager
-- **Build**: Cloud Build
+- **Build**: Cloud Build (triggered from GitHub or manually)
 - **DNS**: GoDaddy → Cloud Run
 
-## 1️⃣ Initial Setup
+> **Why SQLite on Cloud Run?** This HOA portal has low, predictable traffic. SQLite with a Cloud Storage volume mount is simpler and free vs. Cloud SQL at ~$7.50/month. The only constraint is `--max-instances=1` to prevent concurrent write conflicts — which is fine for this use case.
 
-### Enable Required APIs
+---
+
+## 1️⃣ Set Up Google Cloud (Starting from Google Workspace)
+
+Your Google Workspace account can be used directly with Google Cloud — they share the same Google identity.
+
+### Step 1: Create a Google Cloud Project
+
+1. Go to **[console.cloud.google.com](https://console.cloud.google.com)**
+2. Sign in with your **Google Workspace email** (e.g., admin@scarboroughglenhoa.com)
+3. Click the project selector at the top → **"New Project"**
+4. Enter:
+   - **Project name**: `scarborough-glen-hoa`
+   - **Organization**: Your Google Workspace org will appear automatically
+5. Click **"Create"**
+
+### Step 2: Enable Billing
+
+1. In Cloud Console → **Billing** (left sidebar)
+2. Click **"Link a billing account"**
+3. Add a credit card (you won't be charged much — see cost estimate at bottom)
+
+### Step 3: Install the gcloud CLI
 
 ```bash
-# Set your project ID
-export PROJECT_ID="your-project-id"
+# macOS
+brew install google-cloud-sdk
+
+# Windows (run in PowerShell as admin)
+# Download installer from: https://cloud.google.com/sdk/docs/install
+
+# Linux
+curl https://sdk.cloud.google.com | bash
+exec -l $SHELL
+```
+
+### Step 4: Authenticate and Configure
+
+```bash
+# Login with your Google Workspace account
+gcloud auth login
+
+# Set your project
+export PROJECT_ID="scarborough-glen-hoa"  # Use your actual project ID
 gcloud config set project $PROJECT_ID
 
-# Enable required APIs
+# Verify
+gcloud config list
+```
+
+### Step 5: Enable Required APIs
+
+```bash
 gcloud services enable \
   run.googleapis.com \
   cloudbuild.googleapis.com \
-  sqladmin.googleapis.com \
   secretmanager.googleapis.com \
   artifactregistry.googleapis.com \
-  vpcaccess.googleapis.com
+  storage.googleapis.com
 ```
 
-### Create Artifact Registry Repository
+### Step 6: Create Artifact Registry (stores your Docker images)
 
 ```bash
 export REGION="us-central1"
@@ -47,282 +90,263 @@ gcloud artifacts repositories create hoa-portal \
   --repository-format=docker \
   --location=$REGION \
   --description="HOA Portal container images"
+
+# Authorize Docker to push to Artifact Registry
+gcloud auth configure-docker ${REGION}-docker.pkg.dev
 ```
 
-## 2️⃣ Database Setup (Cloud SQL PostgreSQL)
+---
 
-### Create Cloud SQL Instance
+## 2️⃣ Database Setup (SQLite on Cloud Storage)
+
+Instead of Cloud SQL, we store the SQLite file in a Cloud Storage bucket and mount it directly into the Cloud Run container using a volume. This is persistent across deployments and free.
+
+### Create the Database Bucket
 
 ```bash
-# Create PostgreSQL instance
-gcloud sql instances create hoa-db \
-  --database-version=POSTGRES_15 \
-  --tier=db-f1-micro \
-  --region=$REGION \
-  --root-password="CHANGE_ME_SECURE_PASSWORD"
+# Create a private bucket for the SQLite database
+gcloud storage buckets create gs://${PROJECT_ID}-database \
+  --location=$REGION \
+  --uniform-bucket-level-access
 
-# Create database
-gcloud sql databases create hoa_production \
-  --instance=hoa-db
-
-# Create database user
-gcloud sql users create hoa_user \
-  --instance=hoa-db \
-  --password="CHANGE_ME_USER_PASSWORD"
+echo "✅ Database bucket: gs://${PROJECT_ID}-database"
 ```
 
-### Get Database Connection String
+### How It Works
+
+Cloud Run mounts the bucket as a filesystem volume at `/app/data`. The SQLite file (`dev.db`) lives in the bucket and persists between deployments and restarts.
+
+**Constraints with this approach:**
+- ✅ `--max-instances=1` — SQLite can't handle concurrent writes from multiple instances
+- ✅ Perfect for HOA portal traffic levels (hundreds of users, not thousands)
+- ✅ Automatic backups via Cloud Storage versioning (enable below)
+
+### Enable Versioning (Automatic Backups)
 
 ```bash
-# Get the connection name
-gcloud sql instances describe hoa-db --format='value(connectionName)'
-# Output: project-id:region:hoa-db
+# Keep 30 days of database history
+gcloud storage buckets update gs://${PROJECT_ID}-database \
+  --versioning
 
-# Connection string format for Cloud Run:
-# postgresql://hoa_user:PASSWORD@/hoa_production?host=/cloudsql/PROJECT:REGION:hoa-db
-```
-
-### Update Prisma Schema for PostgreSQL
-
-**Edit `prisma/schema.prisma`:**
-
-```prisma
-datasource db {
-  provider = "postgresql"  // Changed from sqlite
-  url      = env("DATABASE_URL")
-}
-
-// Update models to use PostgreSQL-compatible syntax
-model User {
-  id        String   @id @default(uuid())  // Changed from cuid()
-  email     String   @unique
-  condo     String
-  unit      String
-  isAdmin   Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  threads   Thread[]
-  posts     Post[]
-  downloads DocumentDownload[]
-}
-
-// ... (keep rest of schema, just change id defaults from cuid() to uuid())
-```
-
-## 3️⃣ Storage Setup
-
-### Option A: Google Cloud Storage (Recommended)
-
-```bash
-# Create buckets
-gsutil mb -l $REGION gs://${PROJECT_ID}-hoa
-gsutil mb -l $REGION gs://${PROJECT_ID}-condo1
-gsutil mb -l $REGION gs://${PROJECT_ID}-condo2
-gsutil mb -l $REGION gs://${PROJECT_ID}-condo3
-gsutil mb -l $REGION gs://${PROJECT_ID}-condo4
-
-# Set lifecycle (optional - auto-delete old files)
-cat > lifecycle.json << EOF
+# Auto-delete old versions after 30 days
+cat > lifecycle.json << 'EOF'
 {
   "lifecycle": {
     "rule": [
       {
         "action": {"type": "Delete"},
-        "condition": {"age": 365}
+        "condition": {
+          "daysSinceNoncurrentTime": 30,
+          "isLive": false
+        }
       }
     ]
   }
 }
 EOF
 
-gsutil lifecycle set lifecycle.json gs://${PROJECT_ID}-hoa
+gcloud storage buckets update gs://${PROJECT_ID}-database \
+  --lifecycle-file=lifecycle.json
+
+rm lifecycle.json
+echo "✅ Versioning enabled — 30 days of database backups"
 ```
 
-**Environment variables for GCS:**
+---
+
+## 3️⃣ File Storage Setup (Google Cloud Storage for PDFs)
+
 ```bash
-STORAGE_PROVIDER=gcp
-S3_ENDPOINT=storage.googleapis.com
-S3_PORT=443
-S3_USE_SSL=true
-S3_REGION=us-central1
-# Access keys: Use service account key or Workload Identity
+# Create buckets for each section
+for section in hoa condo1 condo2 condo3 condo4; do
+  gcloud storage buckets create gs://${PROJECT_ID}-${section} \
+    --location=$REGION \
+    --uniform-bucket-level-access
+  echo "✅ Created bucket: gs://${PROJECT_ID}-${section}"
+done
 ```
 
-### Option B: AWS S3
+---
+
+## 4️⃣ Secrets Setup
+
+Store all sensitive values in Secret Manager so they're never in code or environment files.
 
 ```bash
-# Create buckets in AWS
-aws s3 mb s3://your-org-hoa --region us-east-1
-aws s3 mb s3://your-org-condo1 --region us-east-1
-# ... etc
-
-# Get credentials from IAM user
-```
-
-**Environment variables for AWS:**
-```bash
-STORAGE_PROVIDER=aws
-S3_ENDPOINT=s3.amazonaws.com
-S3_PORT=443
-S3_USE_SSL=true
-S3_REGION=us-east-1
-S3_ACCESS_KEY=AKIA...
-S3_SECRET_KEY=...
-```
-
-## 4️⃣ Secrets Management
-
-### Create Secrets in Google Secret Manager
-
-```bash
-# Database URL
-echo -n "postgresql://hoa_user:PASSWORD@/hoa_production?host=/cloudsql/PROJECT:REGION:hoa-db" | \
-  gcloud secrets create database-url --data-file=-
-
-# S3 Access Key
-echo -n "YOUR_S3_ACCESS_KEY" | \
-  gcloud secrets create s3-access-key --data-file=-
-
-# S3 Secret Key
-echo -n "YOUR_S3_SECRET_KEY" | \
-  gcloud secrets create s3-secret-key --data-file=-
-
-# OpenAI API Key
-echo -n "sk-..." | \
-  gcloud secrets create openai-api-key --data-file=-
-
-# Gemini API Key (optional)
-echo -n "AIza..." | \
-  gcloud secrets create gemini-api-key --data-file=-
-```
-
-### Grant Access to Cloud Run Service Account
-
-```bash
-# Get the default compute service account
+# Get service account that Cloud Run will use
 export PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
 export SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 
-# Grant secret access
-for secret in database-url s3-access-key s3-secret-key openai-api-key gemini-api-key; do
+# Database URL (SQLite file path inside the mounted volume)
+echo -n "file:/app/data/production.db" | \
+  gcloud secrets create database-url --data-file=-
+
+# S3 credentials for GCS (generate HMAC keys below)
+echo -n "YOUR_GCS_ACCESS_KEY" | \
+  gcloud secrets create s3-access-key --data-file=-
+
+echo -n "YOUR_GCS_SECRET_KEY" | \
+  gcloud secrets create s3-secret-key --data-file=-
+
+# OpenAI API Key (for document description extraction)
+echo -n "sk-..." | \
+  gcloud secrets create openai-api-key --data-file=-
+
+# Grant Cloud Run access to all secrets
+for secret in database-url s3-access-key s3-secret-key openai-api-key; do
   gcloud secrets add-iam-policy-binding $secret \
     --member="serviceAccount:${SERVICE_ACCOUNT}" \
     --role="roles/secretmanager.secretAccessor"
 done
 
-# Grant Cloud SQL access
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:${SERVICE_ACCOUNT}" \
-  --role="roles/cloudsql.client"
+echo "✅ Secrets created and permissions granted"
 ```
+
+### Generate GCS HMAC Keys (S3-compatible credentials)
+
+```bash
+# Create HMAC keys for S3-compatible access to Cloud Storage
+gcloud storage hmac create ${SERVICE_ACCOUNT}
+
+# Output will show:
+# accessId: GOOG1E...
+# secret: ...
+# Update your secrets with these values:
+
+# Update s3-access-key
+echo -n "GOOG1E..." | gcloud secrets versions add s3-access-key --data-file=-
+
+# Update s3-secret-key
+echo -n "YOUR_SECRET" | gcloud secrets versions add s3-secret-key --data-file=-
+```
+
+### Grant Storage Access to Service Account
+
+```bash
+# Access to database bucket (read/write)
+gcloud storage buckets add-iam-policy-binding gs://${PROJECT_ID}-database \
+  --member="serviceAccount:${SERVICE_ACCOUNT}" \
+  --role="roles/storage.objectAdmin"
+
+# Access to PDF buckets (read/write)
+for section in hoa condo1 condo2 condo3 condo4; do
+  gcloud storage buckets add-iam-policy-binding gs://${PROJECT_ID}-${section} \
+    --member="serviceAccount:${SERVICE_ACCOUNT}" \
+    --role="roles/storage.objectAdmin"
+done
+
+echo "✅ Storage permissions granted"
+```
+
+---
 
 ## 5️⃣ Deploy to Cloud Run
 
-### Option A: Using Cloud Build (Recommended)
+### Option A: Manual First Deploy
 
 ```bash
-# Submit build
-gcloud builds submit \
-  --config cloudbuild.yaml \
-  --substitutions=_REGION=$REGION,_STORAGE_PROVIDER=gcp
+# Build and push the image
+docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/hoa-portal/hoa-portal:latest .
+docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/hoa-portal/hoa-portal:latest
 
-# Monitor deployment
-gcloud run services describe hoa-portal --region=$REGION
-```
-
-### Option B: Manual Deployment
-
-```bash
-# Build and push image
-docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/hoa-portal/hoa-portal:latest .
-docker push $REGION-docker.pkg.dev/$PROJECT_ID/hoa-portal/hoa-portal:latest
-
-# Deploy to Cloud Run
+# Deploy with SQLite volume mount
 gcloud run deploy hoa-portal \
-  --image=$REGION-docker.pkg.dev/$PROJECT_ID/hoa-portal/hoa-portal:latest \
+  --image=${REGION}-docker.pkg.dev/${PROJECT_ID}/hoa-portal/hoa-portal:latest \
   --region=$REGION \
   --platform=managed \
   --allow-unauthenticated \
   --memory=512Mi \
-  --set-env-vars="NODE_ENV=production,STORAGE_PROVIDER=gcp,S3_ENDPOINT=storage.googleapis.com" \
-  --set-secrets="DATABASE_URL=database-url:latest,S3_ACCESS_KEY=s3-access-key:latest" \
-  --add-cloudsql-instances=$PROJECT_ID:$REGION:hoa-db
+  --cpu=1 \
+  --min-instances=1 \
+  --max-instances=1 \
+  --timeout=300 \
+  --set-env-vars="NODE_ENV=production" \
+  --set-env-vars="STORAGE_PROVIDER=gcp" \
+  --set-env-vars="S3_ENDPOINT=storage.googleapis.com" \
+  --set-env-vars="S3_PORT=443" \
+  --set-env-vars="S3_USE_SSL=true" \
+  --set-env-vars="S3_REGION=${REGION}" \
+  --set-secrets="DATABASE_URL=database-url:latest" \
+  --set-secrets="S3_ACCESS_KEY=s3-access-key:latest" \
+  --set-secrets="S3_SECRET_KEY=s3-secret-key:latest" \
+  --set-secrets="OPENAI_API_KEY=openai-api-key:latest" \
+  --add-volume=name=database,type=cloud-storage,bucket=${PROJECT_ID}-database \
+  --add-volume-mount=volume=database,mount-path=/app/data
 ```
 
-### Get the Cloud Run URL
+### Option B: Cloud Build (for ongoing deployments)
 
 ```bash
-gcloud run services describe hoa-portal --region=$REGION --format='value(status.url)'
-# Output: https://hoa-portal-xyz-uc.a.run.app
+gcloud builds submit --config cloudbuild.yaml \
+  --substitutions=_REGION=$REGION,_STORAGE_PROVIDER=gcp,_S3_ENDPOINT=storage.googleapis.com
 ```
+
+### Get Your URL
+
+```bash
+gcloud run services describe hoa-portal \
+  --region=$REGION \
+  --format='value(status.url)'
+# Output: https://hoa-portal-abc123-uc.a.run.app
+```
+
+---
 
 ## 6️⃣ Custom Domain Setup (GoDaddy)
 
-### Step 1: Add Domain Mapping in Cloud Run
+### Step 1: Verify Domain Ownership in Google Cloud
+
+Since your domain is also used in Google Workspace, it may already be verified. Check first:
 
 ```bash
-# Map your custom domain
+gcloud domains list-user-verified
+```
+
+If not listed:
+
+```bash
+# Start domain mapping (this generates a TXT verification record)
 gcloud run domain-mappings create \
   --service=hoa-portal \
   --domain=scarboroughglenhoa.com \
   --region=$REGION
-```
 
-### Step 2: Verify Domain Ownership
-
-Cloud Run will provide a TXT record for verification:
-
-```bash
-# Get verification record
+# Get the TXT verification record
 gcloud run domain-mappings describe \
   --domain=scarboroughglenhoa.com \
   --region=$REGION
 ```
 
-You'll see output like:
-```
-resourceRecords:
-- name: scarboroughglenhoa.com
-  rrdata: google-site-verification=ABC123...
-  type: TXT
-```
+### Step 2: Add DNS Records in GoDaddy
 
-### Step 3: Update DNS in GoDaddy
+**Login to GoDaddy:**
+1. Go to [dnsmanagement.godaddy.com](https://dnsmanagement.godaddy.com)
+2. Select `scarboroughglenhoa.com`
+3. Click **"Manage DNS"**
 
-**Login to GoDaddy DNS Management:**
-
-1. Go to https://dnsmanagement.godaddy.com/
-2. Select your domain
-3. Click "Manage DNS"
-
-**Add Verification TXT Record:**
+**Add TXT record for verification:**
 
 | Type | Name | Value | TTL |
 |------|------|-------|-----|
-| TXT | @ | `google-site-verification=ABC123...` | 1 Hour |
+| TXT | @ | `google-site-verification=XXXXX` | 1 Hour |
 
-**Add CNAME Records for Cloud Run:**
-
-After verification completes (check with `gcloud run domain-mappings describe`), you'll get CNAME targets like:
+**After verification, add CNAME for www:**
 
 | Type | Name | Value | TTL |
 |------|------|-------|-----|
 | CNAME | www | `ghs.googlehosted.com` | 1 Hour |
-| A | @ | (Use GoDaddy forwarding to www) | 1 Hour |
 
-**Alternative: Direct A Records (if provided by Cloud Run)**
-
-Some Cloud Run regions provide A/AAAA records:
+**For the apex domain (@), get the A record IPs:**
 
 ```bash
-# Get the IP addresses
+# Get IP addresses provided by Cloud Run
 gcloud run domain-mappings describe \
   --domain=scarboroughglenhoa.com \
   --region=$REGION \
   --format="value(status.resourceRecords)"
 ```
 
-Add these to GoDaddy:
+Add all A records returned (typically 4 IPs):
 
 | Type | Name | Value | TTL |
 |------|------|-------|-----|
@@ -331,175 +355,154 @@ Add these to GoDaddy:
 | A | @ | `216.239.36.21` | 1 Hour |
 | A | @ | `216.239.38.21` | 1 Hour |
 
-### Step 4: Enable HTTPS
+> **Note:** If you're also serving email through Google Workspace, your MX records are already set — don't touch those.
 
-Cloud Run automatically provisions SSL certificates via Let's Encrypt:
+### Step 3: Wait for SSL Certificate
+
+Cloud Run automatically provisions an SSL certificate. Check status:
 
 ```bash
-# Check certificate status
 gcloud run domain-mappings describe \
   --domain=scarboroughglenhoa.com \
   --region=$REGION \
   --format="value(status.conditions)"
 ```
 
-Wait 15-60 minutes for certificate provisioning.
-
-## 7️⃣ Post-Deployment
-
-### Run Database Migrations
-
-Migrations run automatically on startup (via `docker-entrypoint.sh`), but you can also run manually:
-
-```bash
-# SSH into a running instance (for debugging)
-gcloud run services proxy hoa-portal --region=$REGION
-
-# Or create a one-off job
-gcloud run jobs create migrate-db \
-  --image=$REGION-docker.pkg.dev/$PROJECT_ID/hoa-portal/hoa-portal:latest \
-  --set-secrets=DATABASE_URL=database-url:latest \
-  --add-cloudsql-instances=$PROJECT_ID:$REGION:hoa-db \
-  --command="npx" \
-  --args="prisma,migrate,deploy" \
-  --region=$REGION
-```
-
-### Seed Initial Data
-
-```bash
-# Create admin user via Cloud Run job
-gcloud run jobs create seed-db \
-  --image=$REGION-docker.pkg.dev/$PROJECT_ID/hoa-portal/hoa-portal:latest \
-  --set-secrets=DATABASE_URL=database-url:latest \
-  --add-cloudsql-instances=$PROJECT_ID:$REGION:hoa-db \
-  --command="npx" \
-  --args="prisma,db,seed" \
-  --region=$REGION
-
-gcloud run jobs execute seed-db --region=$REGION
-```
-
-### Create Admin User
-
-```bash
-# Use the make-admin script
-gcloud run jobs create make-admin \
-  --image=$REGION-docker.pkg.dev/$PROJECT_ID/hoa-portal/hoa-portal:latest \
-  --set-secrets=DATABASE_URL=database-url:latest \
-  --add-cloudsql-instances=$PROJECT_ID:$REGION:hoa-db \
-  --command="npx" \
-  --args="tsx,scripts/make-admin.ts,admin@scarboroughglenhoa.com" \
-  --region=$REGION
-
-gcloud run jobs execute make-admin --region=$REGION
-```
-
-## 8️⃣ Monitoring & Logs
-
-### View Logs
-
-```bash
-# Stream logs
-gcloud run services logs tail hoa-portal --region=$REGION
-
-# View in Cloud Console
-echo "https://console.cloud.google.com/run/detail/$REGION/hoa-portal/logs?project=$PROJECT_ID"
-```
-
-### Set Up Alerts
-
-```bash
-# Create uptime check
-gcloud monitoring uptime create hoa-portal-uptime \
-  --resource-type=uptime-url \
-  --host=scarboroughglenhoa.com \
-  --path=/
-```
-
-## 9️⃣ CI/CD Setup (Optional)
-
-### Automatic Deployments from GitHub
-
-Create `.github/workflows/deploy.yml`:
-
-```yaml
-name: Deploy to Cloud Run
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: google-github-actions/auth@v1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud builds submit --config cloudbuild.yaml
-```
-
-## 🔧 Troubleshooting
-
-### Database Connection Issues
-
-```bash
-# Test connection from Cloud Run
-gcloud run services update hoa-portal \
-  --region=$REGION \
-  --set-env-vars="DEBUG=true"
-
-# Check Cloud SQL logs
-gcloud sql operations list --instance=hoa-db
-```
-
-### DNS Not Resolving
-
-```bash
-# Check DNS propagation
-dig scarboroughglenhoa.com
-nslookup scarboroughglenhoa.com
-
-# Wait up to 48 hours for full propagation
-```
-
-### SSL Certificate Issues
-
-```bash
-# Force certificate refresh
-gcloud run domain-mappings delete --domain=scarboroughglenhoa.com --region=$REGION
-gcloud run domain-mappings create --service=hoa-portal --domain=scarboroughglenhoa.com --region=$REGION
-```
-
-## 💰 Cost Estimate
-
-**Monthly costs (light usage):**
-- Cloud Run: $0-5 (free tier covers most)
-- Cloud SQL (db-f1-micro): ~$7.50
-- Cloud Storage: ~$1-2
-- Cloud Build: $0 (120 builds/day free)
-- **Total: ~$10-15/month**
-
-**Production scale (1000 users):**
-- Cloud Run: ~$20
-- Cloud SQL (db-g1-small): ~$25
-- Cloud Storage: ~$5
-- **Total: ~$50/month**
-
-## 📚 Next Steps
-
-1. Set up automated backups for Cloud SQL
-2. Configure Cloud Armor for DDoS protection
-3. Set up monitoring dashboards
-4. Configure email via SendGrid or Mailgun
-5. Add Cloud CDN for static assets
+Wait 15–60 minutes. Once `CertificateProvisioned` shows `True`, the site is live at https://scarboroughglenhoa.com.
 
 ---
 
-**🎉 Your HOA Portal is now running on Google Cloud Run with a custom domain!**
+## 7️⃣ Initialize the Application
+
+### Seed the Database
+
+On first deploy, run the seed script to create invite codes:
+
+```bash
+gcloud run jobs create seed-db \
+  --image=${REGION}-docker.pkg.dev/${PROJECT_ID}/hoa-portal/hoa-portal:latest \
+  --region=$REGION \
+  --set-secrets="DATABASE_URL=database-url:latest" \
+  --add-volume=name=database,type=cloud-storage,bucket=${PROJECT_ID}-database \
+  --add-volume-mount=volume=database,mount-path=/app/data \
+  --command="npx" \
+  --args="prisma,db,seed"
+
+gcloud run jobs execute seed-db --region=$REGION --wait
+```
+
+### Create Your Admin User
+
+```bash
+gcloud run jobs create make-admin \
+  --image=${REGION}-docker.pkg.dev/${PROJECT_ID}/hoa-portal/hoa-portal:latest \
+  --region=$REGION \
+  --set-secrets="DATABASE_URL=database-url:latest" \
+  --add-volume=name=database,type=cloud-storage,bucket=${PROJECT_ID}-database \
+  --add-volume-mount=volume=database,mount-path=/app/data \
+  --command="npx" \
+  --args="tsx,scripts/make-admin.ts,admin@scarboroughglenhoa.com"
+
+gcloud run jobs execute make-admin --region=$REGION --wait
+```
+
+---
+
+## 8️⃣ Update cloudbuild.yaml for SQLite
+
+Update the deploy step in `cloudbuild.yaml` to include the volume mount:
+
+```yaml
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=...'
+      - '--region=${_REGION}'
+      - '--allow-unauthenticated'
+      - '--min-instances=1'
+      - '--max-instances=1'          # Required for SQLite
+      - '--add-volume=name=database,type=cloud-storage,bucket=${PROJECT_ID}-database'
+      - '--add-volume-mount=volume=database,mount-path=/app/data'
+      - '--set-secrets=DATABASE_URL=database-url:latest'
+      # ... other flags
+```
+
+---
+
+## 9️⃣ Monitoring & Logs
+
+```bash
+# Live logs
+gcloud run services logs tail hoa-portal --region=$REGION
+
+# Cloud Console logs
+open "https://console.cloud.google.com/run/detail/${REGION}/hoa-portal/logs?project=${PROJECT_ID}"
+
+# Database backup history
+gcloud storage ls -l gs://${PROJECT_ID}-database/
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### App not starting
+
+```bash
+gcloud run services logs tail hoa-portal --region=$REGION
+# Look for Prisma migration errors or missing secrets
+```
+
+### Database file not persisting
+
+```bash
+# Verify volume is mounted
+gcloud run services describe hoa-portal --region=$REGION --format=json | \
+  jq '.spec.template.spec.volumes'
+```
+
+### DNS not resolving
+
+```bash
+# Check propagation (can take up to 48 hours)
+dig scarboroughglenhoa.com
+nslookup scarboroughglenhoa.com 8.8.8.8
+
+# Verify GoDaddy records saved correctly
+```
+
+### Domain already verified in Google Workspace
+
+If Cloud Run says the domain is already verified (because of Workspace), you can skip the TXT record step and go straight to adding the A/CNAME records.
+
+---
+
+## 💰 Cost Estimate
+
+**Monthly costs:**
+
+| Service | Cost |
+|---------|------|
+| Cloud Run (1 instance, ~10% CPU) | ~$2-5 |
+| Cloud Storage - database bucket | ~$0.03 |
+| Cloud Storage - PDF buckets | ~$1-3 |
+| Cloud Build (120 builds/day free) | $0 |
+| Secret Manager | ~$0.06 |
+| **Total** | **~$3-8/month** |
+
+> **vs. Cloud SQL:** Using SQLite saves ~$7.50/month (no Cloud SQL db-f1-micro instance needed).
+
+---
+
+## 📚 Related Guides
+
+- [QUICKSTART_CLOUDRUN.md](QUICKSTART_CLOUDRUN.md) - Condensed quick-start
+- [GITHUB_AUTOMATION.md](GITHUB_AUTOMATION.md) - Auto-deploy on git push
+- [GOOGLE_DRIVE_STAGING.md](GOOGLE_DRIVE_STAGING.md) - Upload docs via Google Drive
+- [PROXY_SETUP.md](PROXY_SETUP.md) - Corporate proxy configuration
+
+---
+
+**🎉 Your HOA Portal is now live on Google Cloud Run!**

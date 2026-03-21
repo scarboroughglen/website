@@ -1,5 +1,12 @@
 # Google Cloud Build configuration for deploying to Cloud Run
-# Trigger: gcloud builds submit --config cloudbuild.yaml
+# Uses SQLite stored on a Cloud Storage volume mount (no Cloud SQL needed)
+#
+# Usage:
+#   gcloud builds submit --config cloudbuild.yaml
+#
+# Or with overrides:
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions=_REGION=us-east1,_S3_ENDPOINT=storage.googleapis.com
 
 steps:
   # Step 1: Build the Docker image
@@ -19,17 +26,9 @@ steps:
       - '--all-tags'
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}'
 
-  # Step 3: Run database migrations
-  - name: 'gcr.io/cloud-builders/gcloud'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        # This will run migrations on the deployed instance
-        # For initial deployment, migrations run in docker-entrypoint.sh
-        echo "Migrations will run automatically on container startup"
-
-  # Step 4: Deploy to Cloud Run
+  # Step 3: Deploy to Cloud Run
+  # SQLite database is stored in a Cloud Storage bucket mounted at /app/data
+  # max-instances=1 is required to prevent concurrent SQLite write conflicts
   - name: 'gcr.io/cloud-builders/gcloud'
     args:
       - 'run'
@@ -54,27 +53,24 @@ steps:
       - '--set-secrets=S3_ACCESS_KEY=s3-access-key:latest'
       - '--set-secrets=S3_SECRET_KEY=s3-secret-key:latest'
       - '--set-secrets=OPENAI_API_KEY=openai-api-key:latest'
-      - '--set-secrets=GEMINI_API_KEY=gemini-api-key:latest'
-      - '--vpc-connector=${_VPC_CONNECTOR}'
-      - '--vpc-egress=${_VPC_EGRESS}'
+      - '--add-volume=name=database,type=cloud-storage,bucket=${PROJECT_ID}-database'
+      - '--add-volume-mount=volume=database,mount-path=/app/data'
 
-# Substitution variables (can be overridden via --substitutions flag)
+# Substitution defaults — override via --substitutions flag or Cloud Build trigger settings
 substitutions:
   _REGION: us-central1
   _REPOSITORY: hoa-portal
   _SERVICE_NAME: hoa-portal
   _MEMORY: 512Mi
   _CPU: '1'
-  _MIN_INSTANCES: '0'
-  _MAX_INSTANCES: '10'
+  _MIN_INSTANCES: '1'   # Keep 1 warm instance (avoids cold start delay for users)
+  _MAX_INSTANCES: '1'   # SQLite requires single instance
   _TIMEOUT: '300'
-  _STORAGE_PROVIDER: aws
-  _S3_ENDPOINT: s3.amazonaws.com
+  _STORAGE_PROVIDER: gcp
+  _S3_ENDPOINT: storage.googleapis.com
   _S3_PORT: '443'
   _S3_USE_SSL: 'true'
-  _S3_REGION: us-east-1
-  _VPC_CONNECTOR: ''  # Leave empty if not using VPC
-  _VPC_EGRESS: all-traffic
+  _S3_REGION: us-central1
 
 options:
   machineType: 'N1_HIGHCPU_8'
