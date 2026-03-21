@@ -29,7 +29,7 @@ Your Google Workspace account can be used directly with Google Cloud — they sh
 ### Step 1: Create a Google Cloud Project
 
 1. Go to **[console.cloud.google.com](https://console.cloud.google.com)**
-2. Sign in with your **Google Workspace email** (e.g., admin@scarboroughglenhoa.com)
+2. Sign in with your **Google Workspace email** (e.g., admin@scarboroughglen.com)
 3. Click the project selector at the top → **"New Project"**
 4. Enter:
    - **Project name**: `scarborough-glen-hoa`
@@ -248,7 +248,7 @@ Since you're already on Google Workspace and Google Cloud, Gemini is the natural
 ### Option A: Google AI Studio (Easiest — Free Tier Available)
 
 1. Go to **[aistudio.google.com](https://aistudio.google.com)**
-2. Sign in with your **Google Workspace email** (admin@scarboroughglenhoa.com)
+2. Sign in with your **Google Workspace email** (admin@scarboroughglen.com)
 3. Click **"Get API key"** in the left sidebar
 4. Click **"Create API key"**
 5. Select your Google Cloud project (`scarborough-glen-hoa`)
@@ -356,12 +356,12 @@ If not listed:
 # Start domain mapping (this generates a TXT verification record)
 gcloud run domain-mappings create \
   --service=hoa-portal \
-  --domain=scarboroughglenhoa.com \
+  --domain=scarboroughglen.com \
   --region=$REGION
 
 # Get the TXT verification record
 gcloud run domain-mappings describe \
-  --domain=scarboroughglenhoa.com \
+  --domain=scarboroughglen.com \
   --region=$REGION
 ```
 
@@ -369,7 +369,7 @@ gcloud run domain-mappings describe \
 
 **Login to GoDaddy:**
 1. Go to [dnsmanagement.godaddy.com](https://dnsmanagement.godaddy.com)
-2. Select `scarboroughglenhoa.com`
+2. Select `scarboroughglen.com`
 3. Click **"Manage DNS"**
 
 **Add TXT record for verification:**
@@ -389,7 +389,7 @@ gcloud run domain-mappings describe \
 ```bash
 # Get IP addresses provided by Cloud Run
 gcloud run domain-mappings describe \
-  --domain=scarboroughglenhoa.com \
+  --domain=scarboroughglen.com \
   --region=$REGION \
   --format="value(status.resourceRecords)"
 ```
@@ -411,12 +411,12 @@ Cloud Run automatically provisions an SSL certificate. Check status:
 
 ```bash
 gcloud run domain-mappings describe \
-  --domain=scarboroughglenhoa.com \
+  --domain=scarboroughglen.com \
   --region=$REGION \
   --format="value(status.conditions)"
 ```
 
-Wait 15–60 minutes. Once `CertificateProvisioned` shows `True`, the site is live at https://scarboroughglenhoa.com.
+Wait 15–60 minutes. Once `CertificateProvisioned` shows `True`, the site is live at https://scarboroughglen.com.
 
 ---
 
@@ -449,7 +449,7 @@ gcloud run jobs create make-admin \
   --add-volume=name=database,type=cloud-storage,bucket=${PROJECT_ID}-database \
   --add-volume-mount=volume=database,mount-path=/app/data \
   --command="npx" \
-  --args="tsx,scripts/make-admin.ts,admin@scarboroughglenhoa.com"
+  --args="tsx,scripts/make-admin.ts,admin@scarboroughglen.com"
 
 gcloud run jobs execute make-admin --region=$REGION --wait
 ```
@@ -515,8 +515,8 @@ gcloud run services describe hoa-portal --region=$REGION --format=json | \
 
 ```bash
 # Check propagation (can take up to 48 hours)
-dig scarboroughglenhoa.com
-nslookup scarboroughglenhoa.com 8.8.8.8
+dig scarboroughglen.com
+nslookup scarboroughglen.com 8.8.8.8
 
 # Verify GoDaddy records saved correctly
 ```
