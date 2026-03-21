@@ -188,12 +188,13 @@ echo -n "YOUR_GCS_ACCESS_KEY" | \
 echo -n "YOUR_GCS_SECRET_KEY" | \
   gcloud secrets create s3-secret-key --data-file=-
 
-# OpenAI API Key (for document description extraction)
-echo -n "sk-..." | \
-  gcloud secrets create openai-api-key --data-file=-
+# Gemini API Key (for AI document description extraction)
+# See "How to Get a Gemini API Key" section below
+echo -n "AIza..." | \
+  gcloud secrets create gemini-api-key --data-file=-
 
 # Grant Cloud Run access to all secrets
-for secret in database-url s3-access-key s3-secret-key openai-api-key; do
+for secret in database-url s3-access-key s3-secret-key gemini-api-key; do
   gcloud secrets add-iam-policy-binding $secret \
     --member="serviceAccount:${SERVICE_ACCOUNT}" \
     --role="roles/secretmanager.secretAccessor"
@@ -240,7 +241,54 @@ echo "✅ Storage permissions granted"
 
 ---
 
-## 5️⃣ Deploy to Cloud Run
+## 5️⃣ Get a Gemini API Key
+
+Since you're already on Google Workspace and Google Cloud, Gemini is the natural choice — no separate account needed.
+
+### Option A: Google AI Studio (Easiest — Free Tier Available)
+
+1. Go to **[aistudio.google.com](https://aistudio.google.com)**
+2. Sign in with your **Google Workspace email** (admin@scarboroughglenhoa.com)
+3. Click **"Get API key"** in the left sidebar
+4. Click **"Create API key"**
+5. Select your Google Cloud project (`scarborough-glen-hoa`)
+6. Copy the key — it starts with `AIza...`
+
+**Store the key in Secret Manager:**
+
+```bash
+echo -n "AIza..." | gcloud secrets versions add gemini-api-key --data-file=-
+```
+
+> **Free tier**: 15 requests/minute, 1,500 requests/day — more than enough for document uploads.
+
+### Option B: Vertex AI Gemini (Enterprise — Billed via GCP)
+
+If you'd rather bill through your existing GCP project with no rate limits:
+
+```bash
+# Enable Vertex AI API
+gcloud services enable aiplatform.googleapis.com
+
+# Grant the Cloud Run service account access to Vertex AI
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${SERVICE_ACCOUNT}" \
+  --role="roles/aiplatform.user"
+```
+
+> For the HOA portal's usage (a few document uploads per week), **Option A (AI Studio) is recommended** — it's free and simpler.
+
+### Verify the Key Works
+
+```bash
+curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_KEY" | \
+  grep -o '"name": "models/gemini[^"]*"' | head -5
+# Should list available Gemini models
+```
+
+---
+
+## 6️⃣ Deploy to Cloud Run
 
 ### Option A: Manual First Deploy
 
@@ -269,7 +317,7 @@ gcloud run deploy hoa-portal \
   --set-secrets="DATABASE_URL=database-url:latest" \
   --set-secrets="S3_ACCESS_KEY=s3-access-key:latest" \
   --set-secrets="S3_SECRET_KEY=s3-secret-key:latest" \
-  --set-secrets="OPENAI_API_KEY=openai-api-key:latest" \
+  --set-secrets="GEMINI_API_KEY=gemini-api-key:latest" \
   --add-volume=name=database,type=cloud-storage,bucket=${PROJECT_ID}-database \
   --add-volume-mount=volume=database,mount-path=/app/data
 ```
@@ -292,7 +340,7 @@ gcloud run services describe hoa-portal \
 
 ---
 
-## 6️⃣ Custom Domain Setup (GoDaddy)
+## 7️⃣ Custom Domain Setup (GoDaddy)
 
 ### Step 1: Verify Domain Ownership in Google Cloud
 
@@ -372,7 +420,7 @@ Wait 15–60 minutes. Once `CertificateProvisioned` shows `True`, the site is li
 
 ---
 
-## 7️⃣ Initialize the Application
+## 8️⃣ Initialize the Application
 
 ### Seed the Database
 
@@ -408,7 +456,7 @@ gcloud run jobs execute make-admin --region=$REGION --wait
 
 ---
 
-## 8️⃣ Update cloudbuild.yaml for SQLite
+## 9️⃣ Update cloudbuild.yaml for SQLite
 
 Update the deploy step in `cloudbuild.yaml` to include the volume mount:
 
@@ -431,7 +479,7 @@ Update the deploy step in `cloudbuild.yaml` to include the volume mount:
 
 ---
 
-## 9️⃣ Monitoring & Logs
+## 🔟 Monitoring & Logs
 
 ```bash
 # Live logs

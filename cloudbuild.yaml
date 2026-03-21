@@ -52,7 +52,7 @@ steps:
       - '--set-secrets=DATABASE_URL=database-url:latest'
       - '--set-secrets=S3_ACCESS_KEY=s3-access-key:latest'
       - '--set-secrets=S3_SECRET_KEY=s3-secret-key:latest'
-      - '--set-secrets=OPENAI_API_KEY=openai-api-key:latest'
+      - '--set-secrets=GEMINI_API_KEY=gemini-api-key:latest'
       - '--add-volume=name=database,type=cloud-storage,bucket=${PROJECT_ID}-database'
       - '--add-volume-mount=volume=database,mount-path=/app/data'
 
