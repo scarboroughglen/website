@@ -1,11 +1,18 @@
-.PHONY: help build up run down start stop restart logs shell db-reset db-studio db-studio-stop clean dev prod verify codes make-admin revoke-admin list-admins
+.PHONY: help build build-prod push-prod deploy-prod up run down start stop restart logs shell db-reset db-studio db-studio-stop clean dev prod verify codes make-admin revoke-admin list-admins
+
+# Google Cloud settings (override with: make build-prod REGION=us-central1 PROJECT_ID=my-project)
+REGION     ?= us-central1
+PROJECT_ID ?= $(shell gcloud config get-value project 2>/dev/null || echo "my-project")
 
 # Default target
 help:
 	@echo "🏘️  Scarborough Glen HOA Portal - Make Commands"
 	@echo ""
 	@echo "Common Commands:"
-	@echo "  make build       - Build the Docker container (run first)"
+	@echo "  make build       - Build the Docker container (local dev)"
+	@echo "  make build-prod  - Build and tag for Google Artifact Registry"
+	@echo "  make push-prod   - Build and push to Artifact Registry (requires gcloud auth)"
+	@echo "  make deploy-prod - Deploy pushed image to Cloud Run"
 	@echo "  make up          - Start in background (detached)"
 	@echo "  make run         - Start with live logs (foreground)"
 	@echo "  make down        - Stop and remove containers"
@@ -50,10 +57,53 @@ help:
 	@echo "  See DESCRIPTION_EXTRACTION.md for document description features"
 	@echo ""
 
-# Build the Docker container
+# Build the Docker container (local dev)
 build:
 	@echo "🔨 Building Docker container..."
 	docker compose build
+
+# Build and tag for Google Artifact Registry
+build-prod:
+	@echo "🔨 Building production image for Cloud Run..."
+	@echo "   Region:  $(REGION)"
+	@echo "   Project: $(PROJECT_ID)"
+	REGION=$(REGION) PROJECT_ID=$(PROJECT_ID) docker compose build
+	@echo "✅ Image tagged: $(REGION)-docker.pkg.dev/$(PROJECT_ID)/hoa-portal/hoa-portal:latest"
+
+# Push production image to Artifact Registry
+push-prod: build-prod
+	@echo "📤 Pushing image to Artifact Registry..."
+	docker push $(REGION)-docker.pkg.dev/$(PROJECT_ID)/hoa-portal/hoa-portal:latest
+	@echo "✅ Push complete"
+
+# Deploy to Cloud Run
+deploy-prod:
+	@echo "🚀 Deploying to Cloud Run..."
+	@echo "   Region:  $(REGION)"
+	@echo "   Project: $(PROJECT_ID)"
+	gcloud run deploy hoa-portal \
+		--image=$(REGION)-docker.pkg.dev/$(PROJECT_ID)/hoa-portal/hoa-portal:latest \
+		--region=$(REGION) \
+		--platform=managed \
+		--allow-unauthenticated \
+		--memory=512Mi \
+		--cpu=1 \
+		--min-instances=1 \
+		--max-instances=1 \
+		--timeout=300 \
+		--set-env-vars="NODE_ENV=production" \
+		--set-env-vars="STORAGE_PROVIDER=gcp" \
+		--set-env-vars="S3_ENDPOINT=storage.googleapis.com" \
+		--set-env-vars="S3_PORT=443" \
+		--set-env-vars="S3_USE_SSL=true" \
+		--set-env-vars="S3_REGION=$(REGION)" \
+		--set-secrets="DATABASE_URL=database-url:latest" \
+		--set-secrets="S3_ACCESS_KEY=s3-access-key:latest" \
+		--set-secrets="S3_SECRET_KEY=s3-secret-key:latest" \
+		--set-secrets="GEMINI_API_KEY=gemini-api-key:latest" \
+		--add-volume=name=database,type=cloud-storage,bucket=$(PROJECT_ID)-database \
+		--add-volume-mount=volume=database,mount-path=/app/data
+	@echo "✅ Deployment complete"
 
 # Start in background (detached mode)
 up:

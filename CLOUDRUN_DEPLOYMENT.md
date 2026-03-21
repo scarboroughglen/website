@@ -329,6 +329,19 @@ gcloud builds submit --config cloudbuild.yaml \
   --substitutions=_REGION=$REGION,_STORAGE_PROVIDER=gcp,_S3_ENDPOINT=storage.googleapis.com
 ```
 
+### Grant Public Access
+
+After deploying, grant unauthenticated access so the site is publicly reachable:
+
+```bash
+gcloud run services add-iam-policy-binding hoa-portal \
+  --region=$REGION \
+  --member="allUsers" \
+  --role="roles/run.invoker"
+```
+
+> **Note:** If this fails with a policy constraint error, your Google Cloud org has a policy blocking public access. Contact your org admin to allow `allUsers` on Cloud Run, or use Identity-Aware Proxy (IAP) instead.
+
 ### Get Your URL
 
 ```bash

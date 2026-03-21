@@ -91,7 +91,7 @@ async function syncDriveToS3() {
           if (existing) {
             // Check if Drive file was modified after last sync
             const driveModified = new Date(driveFile.modifiedTime!)
-            const lastSync = existing.lastSyncedAt || existing.uploadedAt
+            const lastSync = existing.lastSyncedAt || existing.createdAt
 
             if (driveModified <= lastSync) {
               console.log(`   ⏭️  Skipping ${driveFile.name} (unchanged)`)
@@ -128,7 +128,8 @@ async function syncDriveToS3() {
             await prisma.document.update({
               where: { id: existing.id },
               data: {
-                fileName: s3FileName,
+                filename: s3FileName,
+                filepath: `${getBucketName(section)}/${s3FileName}`,
                 description,
                 lastSyncedAt: new Date(),
               },
@@ -137,7 +138,8 @@ async function syncDriveToS3() {
           } else {
             await prisma.document.create({
               data: {
-                fileName: s3FileName,
+                filename: s3FileName,
+                filepath: `${getBucketName(section)}/${s3FileName}`,
                 section,
                 description,
                 driveFileId: driveFile.id!,

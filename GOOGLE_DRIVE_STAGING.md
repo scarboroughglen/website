@@ -175,7 +175,7 @@ async function syncDriveToS3() {
         if (existing) {
           // Check if Drive file was modified after last sync
           const driveModified = new Date(driveFile.modifiedTime!)
-          const lastSync = existing.lastSyncedAt || existing.uploadedAt
+          const lastSync = existing.lastSyncedAt || existing.createdAt
 
           if (driveModified <= lastSync) {
             console.log(`  ⏭️  Skipping ${driveFile.name} (already synced)`)

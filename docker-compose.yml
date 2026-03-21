@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   app:
+    image: ${REGION:-us-central1}-docker.pkg.dev/${PROJECT_ID:-my-project}/hoa-portal/hoa-portal:latest
     build:
       context: .
       args:
