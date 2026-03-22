@@ -70,6 +70,46 @@ gcloud config set project $PROJECT_ID
 gcloud config list
 ```
 
+### Step 4b: Add Environment Variables to ~/.bashrc
+
+First, look up the values you'll need:
+
+```bash
+# Your project ID (set in Step 4)
+gcloud config get-value project
+# Example output: my-hoa-project
+
+# Your project number
+gcloud projects describe $(gcloud config get-value project) --format='value(projectNumber)'
+# Example output: 123456789012
+
+# The GitHub Actions service account email (created later in the GitHub setup section)
+gcloud iam service-accounts list --filter="displayName:GitHub Actions" --format='value(email)'
+# Example output: github-actions@my-hoa-project.iam.gserviceaccount.com
+```
+
+Then add these to your `~/.bashrc` (or `~/.zshrc`) using the values from above:
+
+```bash
+# Google Cloud / HOA Portal
+export PROJECT_ID="your-project-id"          # e.g. my-hoa-project
+export REGION="us-central1"
+export PROJECT_NUMBER=your-project-number    # e.g. 123456789012
+export SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+export GITHUB_ACTIONS_SA_EMAIL="github-actions@${PROJECT_ID}.iam.gserviceaccount.com"
+
+# API Keys (keep these secret — do not commit to git)
+export GEMINI_API_KEY="AIza..."              # From AI Studio (see section 5)
+export GOOGLE_S3_ACCESS_KEY="GOOG1E..."      # From GCS HMAC keys (see section 4)
+export GOOGLE_S3_SECRET_KEY="..."            # From GCS HMAC keys (see section 4)
+```
+
+Then reload:
+
+```bash
+source ~/.bashrc
+```
+
 ### Step 5: Enable Required APIs
 
 ```bash
@@ -237,6 +277,70 @@ for section in hoa condo1 condo2 condo3 condo4; do
 done
 
 echo "✅ Storage permissions granted"
+```
+
+### Grant Cloud Build Permissions to Compute Service Account
+
+The compute service account runs your Cloud Build jobs and needs several permissions. Grant them all upfront:
+
+```bash
+# Read uploaded source from Cloud Build's GCS bucket
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${SERVICE_ACCOUNT}" \
+  --role="roles/storage.objectViewer"
+
+# Write build logs to Cloud Logging
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${SERVICE_ACCOUNT}" \
+  --role="roles/logging.logWriter"
+
+# Push built images to Artifact Registry
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${SERVICE_ACCOUNT}" \
+  --role="roles/artifactregistry.writer"
+
+# Deploy to Cloud Run
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${SERVICE_ACCOUNT}" \
+  --role="roles/run.admin"
+
+# Allow Cloud Run deploy to act as this service account (required by gcloud run deploy)
+gcloud iam service-accounts add-iam-policy-binding ${SERVICE_ACCOUNT} \
+  --member="serviceAccount:${SERVICE_ACCOUNT}" \
+  --role="roles/iam.serviceAccountUser"
+
+echo "✅ Compute service account permissions granted"
+```
+
+### Grant GitHub Actions Service Account Permissions
+
+```bash
+# Submit builds to Cloud Build
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${GITHUB_ACTIONS_SA_EMAIL}" \
+  --role="roles/cloudbuild.builds.editor"
+
+# Upload source to Cloud Build's GCS bucket
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${GITHUB_ACTIONS_SA_EMAIL}" \
+  --role="roles/storage.admin"
+
+# Required by gcloud builds submit
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${GITHUB_ACTIONS_SA_EMAIL}" \
+  --role="roles/serviceusage.serviceUsageConsumer"
+
+# Deploy to Cloud Run
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${GITHUB_ACTIONS_SA_EMAIL}" \
+  --role="roles/run.admin"
+
+# Act as the compute service account during deploy
+gcloud iam service-accounts add-iam-policy-binding ${SERVICE_ACCOUNT} \
+  --member="serviceAccount:${GITHUB_ACTIONS_SA_EMAIL}" \
+  --role="roles/iam.serviceAccountUser"
+
+echo "✅ GitHub Actions service account permissions granted"
 ```
 
 ---
