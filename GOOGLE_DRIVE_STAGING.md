@@ -93,16 +93,29 @@ export SA_EMAIL=$(gcloud iam service-accounts list \
   --filter="displayName:Drive Sync Service" \
   --format='value(email)')
 
-# Create key
-gcloud iam service-accounts keys create drive-sync-key.json \
+echo "Service account email: $SA_EMAIL"
+# Example: drive-sync@my-hoa-project.iam.gserviceaccount.com
+```
+
+**Download the key for local development:**
+
+```bash
+# Create and save the key — you need this file for local sync
+gcloud iam service-accounts keys create credentials/google-service-account.json \
   --iam-account=$SA_EMAIL
 
-# Store key in Secret Manager
-gcloud secrets create drive-sync-service-account \
-  --data-file=drive-sync-key.json
+# Verify it was created
+cat credentials/google-service-account.json | python3 -m json.tool | grep client_email
+# Should show: "client_email": "drive-sync@your-project.iam.gserviceaccount.com"
+```
 
-# Clean up local key file
-rm drive-sync-key.json
+> **Keep this file secret.** It is git-ignored via `credentials/`. Never commit it.
+
+**Also store in Secret Manager for Cloud Run / CI use:**
+
+```bash
+gcloud secrets create drive-sync-service-account \
+  --data-file=credentials/google-service-account.json
 ```
 
 ### Step 4: Grant Drive Access to Service Account
