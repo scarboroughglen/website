@@ -511,14 +511,18 @@ gcloud beta run domain-mappings describe \
   --format="value(status.resourceRecords)"
 ```
 
-Add all A records returned (typically 4 IPs):
+The command will output 4 A records and 4 AAAA records. Add each one to GoDaddy. For example:
 
 | Type | Name | Value | TTL |
 |------|------|-------|-----|
-| A | @ | `216.239.32.21` | 1 Hour |
-| A | @ | `216.239.34.21` | 1 Hour |
-| A | @ | `216.239.36.21` | 1 Hour |
-| A | @ | `216.239.38.21` | 1 Hour |
+| A | @ | `203.0.113.1` ← use value from command output | 1 Hour |
+| A | @ | `203.0.113.2` ← use value from command output | 1 Hour |
+| A | @ | `203.0.113.3` ← use value from command output | 1 Hour |
+| A | @ | `203.0.113.4` ← use value from command output | 1 Hour |
+| AAAA | @ | `2001:db8::1` ← use value from command output | 1 Hour |
+| AAAA | @ | `2001:db8::2` ← use value from command output | 1 Hour |
+| AAAA | @ | `2001:db8::3` ← use value from command output | 1 Hour |
+| AAAA | @ | `2001:db8::4` ← use value from command output | 1 Hour |
 
 > **Note:** If you're also serving email through Google Workspace, your MX records are already set — don't touch those.
 
