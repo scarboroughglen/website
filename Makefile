@@ -1,4 +1,4 @@
-.PHONY: help build build-prod push-prod deploy-prod up run down start stop restart logs shell db-reset db-studio db-studio-stop clean dev prod verify codes make-admin revoke-admin list-admins
+.PHONY: help build build-prod push-prod deploy-prod get-test-url up run down start stop restart logs shell db-reset db-studio db-studio-stop clean dev prod verify codes make-admin revoke-admin list-admins
 
 # Google Cloud settings (override with: make build-prod REGION=us-central1 PROJECT_ID=my-project)
 REGION     ?= us-central1
@@ -104,6 +104,12 @@ deploy-prod:
 		--add-volume=name=database,type=cloud-storage,bucket=$(PROJECT_ID)-database \
 		--add-volume-mount=volume=database,mount-path=/app/data
 	@echo "✅ Deployment complete"
+
+# Get the Cloud Run service URL
+get-test-url:
+	@gcloud run services describe hoa-portal \
+		--region=$(REGION) \
+		--format='value(status.url)'
 
 # Start in background (detached mode)
 up:

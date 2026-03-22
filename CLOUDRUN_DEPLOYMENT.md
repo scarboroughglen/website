@@ -367,15 +367,15 @@ If not listed:
 
 ```bash
 # Start domain mapping (this generates a TXT verification record)
-gcloud run domain-mappings create \
+gcloud beta run domain-mappings create \
   --service=hoa-portal \
   --domain=scarboroughglen.com \
-  --region=$REGION
+  --region=us-central1
 
 # Get the TXT verification record
-gcloud run domain-mappings describe \
+gcloud beta run domain-mappings describe \
   --domain=scarboroughglen.com \
-  --region=$REGION
+  --region=us-central1
 ```
 
 ### Step 2: Add DNS Records in GoDaddy
@@ -401,9 +401,9 @@ gcloud run domain-mappings describe \
 
 ```bash
 # Get IP addresses provided by Cloud Run
-gcloud run domain-mappings describe \
+gcloud beta run domain-mappings describe \
   --domain=scarboroughglen.com \
-  --region=$REGION \
+  --region=us-central1 \
   --format="value(status.resourceRecords)"
 ```
 
@@ -423,9 +423,9 @@ Add all A records returned (typically 4 IPs):
 Cloud Run automatically provisions an SSL certificate. Check status:
 
 ```bash
-gcloud run domain-mappings describe \
+gcloud beta run domain-mappings describe \
   --domain=scarboroughglen.com \
-  --region=$REGION \
+  --region=us-central1 \
   --format="value(status.conditions)"
 ```
 
