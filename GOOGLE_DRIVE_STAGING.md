@@ -89,11 +89,11 @@ gcloud iam service-accounts create drive-sync \
   --display-name="Drive Sync Service"
 
 # Get email
-export SA_EMAIL=$(gcloud iam service-accounts list \
+export GOOGLE_DRIVE_SYNC_EMAIL=$(gcloud iam service-accounts list \
   --filter="displayName:Drive Sync Service" \
   --format='value(email)')
 
-echo "Service account email: $SA_EMAIL"
+echo "Service account email: $GOOGLE_DRIVE_SYNC_EMAIL"
 # Example: drive-sync@my-hoa-project.iam.gserviceaccount.com
 ```
 
@@ -102,7 +102,7 @@ echo "Service account email: $SA_EMAIL"
 ```bash
 # Create and save the key — you need this file for local sync
 gcloud iam service-accounts keys create credentials/google-service-account.json \
-  --iam-account=$SA_EMAIL
+  --iam-account=$GOOGLE_DRIVE_SYNC_EMAIL
 
 # Verify it was created
 cat credentials/google-service-account.json | python3 -m json.tool | grep client_email
@@ -122,7 +122,7 @@ gcloud secrets create drive-sync-service-account \
 
 1. Get the service account email:
    ```bash
-   echo $SA_EMAIL
+   echo $GOOGLE_DRIVE_SYNC_EMAIL
    # Output: drive-sync@PROJECT_ID.iam.gserviceaccount.com
    ```
 
