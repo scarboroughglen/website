@@ -97,25 +97,44 @@ echo "Service account email: $GOOGLE_DRIVE_SYNC_EMAIL"
 # Example: drive-sync@my-hoa-project.iam.gserviceaccount.com
 ```
 
-**For local development — use Application Default Credentials (ADC):**
+**Download the key for local development:**
 
-If your organization blocks service account key creation, authenticate with your own Google account instead:
-
-```bash
-gcloud auth application-default login
-```
-
-This stores credentials at `~/.config/gcloud/application_default_credentials.json`, which is mounted automatically into the container. Set in your `.env`:
+Your GCP org may have the `iam.disableServiceAccountKeyCreation` policy enabled. As org admin, temporarily disable it, create the key, then re-enable it:
 
 ```bash
-GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/application_default_credentials.json
+# 1. Enable the Org Policy API (one-time)
+gcloud services enable orgpolicy.googleapis.com --project=$PROJECT_ID
+
+# 2. Find where the policy is set
+gcloud org-policies describe constraints/iam.disableServiceAccountKeyCreation \
+  --project=$PROJECT_ID
+# If NOT_FOUND, check at org level:
+gcloud organizations list  # get your ORGANIZATION_ID
+gcloud org-policies describe constraints/iam.disableServiceAccountKeyCreation \
+  --organization=$ORGANIZATION_ID
+
+# 3. Temporarily remove the policy (use --organization if that's where it lives)
+gcloud org-policies delete constraints/iam.disableServiceAccountKeyCreation \
+  --organization=$ORGANIZATION_ID
+
+# 4. Create the key
+gcloud iam service-accounts keys create credentials/google-service-account.json \
+  --iam-account=$GOOGLE_DRIVE_SYNC_EMAIL
+
+# 5. Restore the policy
+cat > /tmp/restore-policy.yaml << 'EOF'
+name: organizations/YOUR_ORG_ID/policies/iam.disableServiceAccountKeyCreation
+spec:
+  rules:
+  - enforce: true
+EOF
+gcloud org-policies set-policy /tmp/restore-policy.yaml
+rm /tmp/restore-policy.yaml
 ```
 
-> ADC uses your personal Google account's access — make sure your account has been shared on the Drive folders (Step 4).
+> **Keep this file secret.** It is git-ignored via `credentials/`. Never commit it.
 
-**For Cloud Run / CI — store the service account key in Secret Manager:**
-
-If key creation is allowed in your org (or an admin creates it for you):
+**Store in Secret Manager for Cloud Run / CI use:**
 
 ```bash
 gcloud secrets create drive-sync-service-account \
