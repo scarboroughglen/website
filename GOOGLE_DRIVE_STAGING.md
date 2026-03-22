@@ -97,21 +97,25 @@ echo "Service account email: $GOOGLE_DRIVE_SYNC_EMAIL"
 # Example: drive-sync@my-hoa-project.iam.gserviceaccount.com
 ```
 
-**Download the key for local development:**
+**For local development — use Application Default Credentials (ADC):**
+
+If your organization blocks service account key creation, authenticate with your own Google account instead:
 
 ```bash
-# Create and save the key — you need this file for local sync
-gcloud iam service-accounts keys create credentials/google-service-account.json \
-  --iam-account=$GOOGLE_DRIVE_SYNC_EMAIL
-
-# Verify it was created
-cat credentials/google-service-account.json | python3 -m json.tool | grep client_email
-# Should show: "client_email": "drive-sync@your-project.iam.gserviceaccount.com"
+gcloud auth application-default login
 ```
 
-> **Keep this file secret.** It is git-ignored via `credentials/`. Never commit it.
+This stores credentials at `~/.config/gcloud/application_default_credentials.json`, which is mounted automatically into the container. Set in your `.env`:
 
-**Also store in Secret Manager for Cloud Run / CI use:**
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/application_default_credentials.json
+```
+
+> ADC uses your personal Google account's access — make sure your account has been shared on the Drive folders (Step 4).
+
+**For Cloud Run / CI — store the service account key in Secret Manager:**
+
+If key creation is allowed in your org (or an admin creates it for you):
 
 ```bash
 gcloud secrets create drive-sync-service-account \
