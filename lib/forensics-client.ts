@@ -84,20 +84,38 @@ function buildAuthHeaders(
 }
 
 // ---------------------------------------------------------------------------
-// MCP JSON-RPC response parsing (JSON or SSE)
+// SSE stream reader — yields parsed JSON-RPC messages as they arrive
 // ---------------------------------------------------------------------------
 
-function parseMcpResponse(body: string, contentType: string): any {
-  if (contentType.includes('text/event-stream')) {
-    for (const line of body.split('\n')) {
-      if (line.startsWith('data:')) {
-        const json = JSON.parse(line.slice('data:'.length).trim())
-        if (json.result !== undefined || json.error !== undefined) return json
+async function* readSseStream(
+  body: ReadableStream<Uint8Array>
+): AsyncGenerator<any> {
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+
+      // Process all complete lines in the buffer
+      const lines = buffer.split('\n')
+      buffer = lines.pop()! // Keep any incomplete trailing line
+
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (trimmed.startsWith('data:')) {
+          const json = trimmed.slice('data:'.length).trim()
+          if (json) yield JSON.parse(json)
+        }
       }
     }
-    throw new Error(`No data line found in SSE response: ${body.slice(0, 200)}`)
+  } finally {
+    reader.releaseLock()
   }
-  return JSON.parse(body)
 }
 
 // ---------------------------------------------------------------------------
@@ -108,13 +126,16 @@ function parseMcpResponse(body: string, contentType: string): any {
  * Send a PDF through the forensics-pdf-mcp server.
  * Returns the forensic summary and enriched PDF (with embedded OCR text).
  *
+ * onProgress is called after each image page is OCR'd: (pagesCompleted, totalImagePages)
+ *
  * Throws if the server is unreachable or returns an error.
  * Callers should catch and handle fallback behaviour.
  */
 export async function processDocument(
   pdfBytes: Buffer,
   filename: string,
-  timeoutMs = 300_000
+  timeoutMs = 300_000,
+  onProgress?: (done: number, total: number) => void
 ): Promise<ForensicsResult> {
   const { serverUrl, keyId, privateKey } = loadConfig()
   const base = serverUrl.replace(/\/$/, '')
@@ -151,7 +172,8 @@ export async function processDocument(
 
   const sessionId = initResp.headers.get('mcp-session-id')
 
-  // --- Step 2: Call process_pdf tool ---
+  // --- Step 2: Call process_pdf tool with progressToken for streaming updates ---
+  const progressToken = randomUUID()
   const toolBodyBytes = Buffer.from(
     JSON.stringify({
       jsonrpc: '2.0',
@@ -163,6 +185,7 @@ export async function processDocument(
           file_base64: pdfBytes.toString('base64'),
           filename,
         },
+        _meta: { progressToken },
       },
     }),
     'utf8'
@@ -186,28 +209,44 @@ export async function processDocument(
     throw new Error(`MCP process_pdf failed: ${toolResp.status} ${toolResp.statusText}`)
   }
 
-  const rpc = parseMcpResponse(
-    await toolResp.text(),
-    toolResp.headers.get('content-type') || ''
-  )
-
-  if (rpc.error) throw new Error(`MCP RPC error: ${JSON.stringify(rpc.error)}`)
-
-  const content = rpc.result?.content?.[0]
-  if (!content || content.type !== 'text') {
-    throw new Error(`Unexpected MCP response structure: ${JSON.stringify(rpc).slice(0, 200)}`)
+  if (!toolResp.body) {
+    throw new Error('MCP response has no body')
   }
 
-  const result = JSON.parse(content.text)
-  if (result.error) throw new Error(`PDF processing error: ${result.error}`)
+  // --- Step 3: Read SSE stream, handling progress notifications and final result ---
+  for await (const msg of readSseStream(toolResp.body as ReadableStream<Uint8Array>)) {
+    if (msg.method === 'notifications/progress') {
+      // Page-level progress from the server
+      const { progress, total } = msg.params ?? {}
+      if (onProgress && typeof progress === 'number' && typeof total === 'number') {
+        onProgress(progress, total)
+      }
+      continue
+    }
 
-  return {
-    summary: result.summary,
-    enrichedPdf: Buffer.from(result.enriched_pdf_base64, 'base64'),
-    hadEmbeddedImages: result.had_embedded_images,
-    pagesProcessed: result.pages_processed,
-    imagesTranscribed: result.images_transcribed,
+    if (msg.id === 1) {
+      // Final result
+      if (msg.error) throw new Error(`MCP RPC error: ${JSON.stringify(msg.error)}`)
+
+      const content = msg.result?.content?.[0]
+      if (!content || content.type !== 'text') {
+        throw new Error(`Unexpected MCP response structure: ${JSON.stringify(msg).slice(0, 200)}`)
+      }
+
+      const result = JSON.parse(content.text)
+      if (result.error) throw new Error(`PDF processing error: ${result.error}`)
+
+      return {
+        summary: result.summary,
+        enrichedPdf: Buffer.from(result.enriched_pdf_base64, 'base64'),
+        hadEmbeddedImages: result.had_embedded_images,
+        pagesProcessed: result.pages_processed,
+        imagesTranscribed: result.images_transcribed,
+      }
+    }
   }
+
+  throw new Error('MCP stream ended without a final result')
 }
 
 /**
@@ -215,7 +254,14 @@ export async function processDocument(
  * Used to decide whether to attempt MCP processing during sync.
  */
 export function isForensicsConfigured(): boolean {
-  if (process.env.FORENSICS_KEY_ID && process.env.FORENSICS_PRIVATE_KEY) return true
+  const keyId = process.env.FORENSICS_KEY_ID
+  if (!keyId) return false
+
+  if (process.env.FORENSICS_PRIVATE_KEY) return true
+
+  const keyFile = process.env.FORENSICS_PRIVATE_KEY_FILE
+  if (keyFile && existsSync(keyFile)) return true
+
   const configDir = join(homedir(), '.forensics-pdf-mcp')
   return existsSync(join(configDir, 'key_id.txt')) && existsSync(join(configDir, 'private_key.pem'))
 }

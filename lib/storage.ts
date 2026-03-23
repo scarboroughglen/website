@@ -127,6 +127,14 @@ export async function deleteFile(bucketName: string, fileName: string): Promise<
   await storageClient.removeObject(bucketName, fileName)
 }
 
+export async function clearBucket(bucketName: string): Promise<number> {
+  const files = await listFiles(bucketName)
+  for (const file of files) {
+    await storageClient.removeObject(bucketName, file)
+  }
+  return files.length
+}
+
 export async function getSignedUrl(
   bucketName: string,
   fileName: string,

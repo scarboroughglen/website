@@ -1,4 +1,4 @@
-.PHONY: help build build-prod push-prod deploy-prod get-test-url up run down start stop restart logs shell db-reset db-studio db-studio-stop clean dev prod verify codes make-admin revoke-admin list-admins
+.PHONY: help build build-prod push-prod deploy-prod get-test-url sync-drive sync-drive-full up run down start stop restart logs shell db-reset db-studio db-studio-stop clean dev prod verify codes make-admin revoke-admin list-admins
 
 # Google Cloud settings (override with: make build-prod REGION=us-central1 PROJECT_ID=my-project)
 REGION     ?= us-central1
@@ -12,7 +12,7 @@ help:
 	@echo "  make build       - Build the Docker container (local dev)"
 	@echo "  make build-prod  - Build and tag for Google Artifact Registry"
 	@echo "  make push-prod   - Build and push to Artifact Registry (requires gcloud auth)"
-	@echo "  make deploy-prod - Deploy pushed image to Cloud Run"
+	@echo "  make deploy-prod     - Deploy pushed image to Cloud Run"
 	@echo "  make up          - Start in background (detached)"
 	@echo "  make run         - Start with live logs (foreground)"
 	@echo "  make down        - Stop and remove containers"
@@ -24,6 +24,10 @@ help:
 	@echo "Development:"
 	@echo "  make dev         - Run in development mode with hot-reload"
 	@echo "  make prod        - Run in production mode"
+	@echo ""
+	@echo "Database:"
+	@echo "  make sync-drive      - Sync new/modified files from Drive to S3"
+	@echo "  make sync-drive-full - Reset document DB and re-sync everything (re-runs forensics)"
 	@echo ""
 	@echo "Database:"
 	@echo "  make db-reset       - Reset database (destroys all data)"
@@ -104,6 +108,21 @@ deploy-prod:
 		--add-volume=name=database,type=cloud-storage,bucket=$(PROJECT_ID)-database \
 		--add-volume-mount=volume=database,mount-path=/app/data
 	@echo "✅ Deployment complete"
+
+# Sync Google Drive → S3 (run container must be up: make up)
+sync-drive:
+	@echo "🔄 Syncing Google Drive → S3..."
+	docker compose exec app npx tsx scripts/sync-drive-to-s3.ts
+
+# Full sync: reset document DB then sync everything from Drive (re-runs forensics MCP on all files)
+sync-drive-full:
+	@echo "⚠️  WARNING: This will wipe all document records and re-sync from scratch!"
+	@read -p "Continue? [y/N] " confirm && [ "$$confirm" = "y" ] || exit 1
+	@echo "🗑️  Resetting document database..."
+	docker compose exec app npx prisma db push --force-reset
+	docker compose exec app npx prisma db push
+	@echo "🔄 Syncing Google Drive → S3 (full)..."
+	docker compose exec app npx tsx scripts/sync-drive-to-s3.ts --full
 
 # Get the Cloud Run service URL
 get-test-url:

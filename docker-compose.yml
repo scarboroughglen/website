@@ -18,6 +18,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./prisma:/app/prisma
+      - ./credentials:/app/credentials:ro
     environment:
       - DATABASE_URL=file:/app/data/dev.db
       - NODE_ENV=production
@@ -35,8 +36,19 @@ services:
       - S3_SECRET_KEY=${S3_SECRET_KEY:-minioadmin}
       - S3_USE_SSL=${S3_USE_SSL:-false}
       - S3_REGION=${S3_REGION:-us-east-1}
+      - BUCKET_PREFIX=${BUCKET_PREFIX:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - FORENSICS_SERVER_URL=${FORENSICS_SERVER_URL:-}
+      - FORENSICS_KEY_ID=${FORENSICS_KEY_ID:-}
+      - FORENSICS_PRIVATE_KEY=${FORENSICS_PRIVATE_KEY:-}
+      - FORENSICS_PRIVATE_KEY_FILE=${FORENSICS_PRIVATE_KEY_FILE:-/app/credentials/forensics_private_key.pem}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-/app/credentials/google-service-account.json}
+      - DRIVE_FOLDER_HOA=${DRIVE_FOLDER_HOA:-}
+      - DRIVE_FOLDER_CONDO1=${DRIVE_FOLDER_CONDO1:-}
+      - DRIVE_FOLDER_CONDO2=${DRIVE_FOLDER_CONDO2:-}
+      - DRIVE_FOLDER_CONDO3=${DRIVE_FOLDER_CONDO3:-}
+      - DRIVE_FOLDER_CONDO4=${DRIVE_FOLDER_CONDO4:-}
     depends_on:
       - minio
 
