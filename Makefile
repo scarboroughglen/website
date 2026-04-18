@@ -109,20 +109,20 @@ deploy-prod:
 		--add-volume-mount=volume=database,mount-path=/app/data
 	@echo "✅ Deployment complete"
 
-# Sync Google Drive → S3 (run container must be up: make up)
+# Sync document DB from MCP server cache (fast — no Drive/OCR, just DB update)
 sync-drive:
-	@echo "🔄 Syncing Google Drive → S3..."
+	@echo "🔄 Syncing document DB from MCP cache..."
 	docker compose exec app npx tsx scripts/sync-drive-to-s3.ts
 
-# Full sync: reset document DB then sync everything from Drive (re-runs forensics MCP on all files)
+# Trigger server-side Drive sync then update local DB
 sync-drive-full:
-	@echo "⚠️  WARNING: This will wipe all document records and re-sync from scratch!"
-	@read -p "Continue? [y/N] " confirm && [ "$$confirm" = "y" ] || exit 1
-	@echo "🗑️  Resetting document database..."
-	docker compose exec app npx prisma db push --force-reset
-	docker compose exec app npx prisma db push
-	@echo "🔄 Syncing Google Drive → S3 (full)..."
+	@echo "🔄 Triggering full server-side Drive → Forensics → S3 sync..."
 	docker compose exec app npx tsx scripts/sync-drive-to-s3.ts --full
+
+# Trigger incremental server-side Drive sync then update local DB
+sync-drive-incremental:
+	@echo "🔄 Triggering incremental server-side Drive sync..."
+	docker compose exec app npx tsx scripts/sync-drive-to-s3.ts --sync-drive
 
 # Get the Cloud Run service URL
 get-test-url:

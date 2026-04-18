@@ -34,17 +34,17 @@ export default async function ForumSection({ params }: { params: { section: stri
   })
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-primary text-white shadow-lg">
+    <div className="min-h-screen bg-secondary">
+      <header className="bg-accent text-white shadow-lg">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold">{displayName} Forum</h1>
-            <nav className="flex gap-4">
-              <Link href="/dashboard" className="hover:underline">Dashboard</Link>
-              <Link href="/forum" className="hover:underline">Forums</Link>
-              <Link href="/documents" className="hover:underline">Documents</Link>
+            <h1 className="text-2xl font-bold"><span className="text-primary">{displayName}</span> Forum</h1>
+            <nav className="flex gap-6">
+              <Link href="/dashboard" className="text-white hover:text-primary transition-colors">Dashboard</Link>
+              <Link href="/forum" className="text-white hover:text-primary transition-colors">Forums</Link>
+              <Link href="/documents" className="text-white hover:text-primary transition-colors">Documents</Link>
               {user.isAdmin && (
-                <Link href="/admin" className="hover:underline">Admin</Link>
+                <Link href="/admin" className="text-white hover:text-primary transition-colors">Admin</Link>
               )}
             </nav>
           </div>
@@ -54,10 +54,10 @@ export default async function ForumSection({ params }: { params: { section: stri
       <main className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <Link href="/forum" className="text-primary hover:underline mb-2 inline-block">
-              ← Back to Forums
+            <Link href="/forum" className="text-primary hover:text-white mb-2 inline-block transition-colors">
+              &larr; Back to Forums
             </Link>
-            <h2 className="text-3xl font-bold text-gray-800">{sectionName} Discussions</h2>
+            <h2 className="text-3xl font-bold text-white">{sectionName} Discussions</h2>
           </div>
           <Link href={`/forum/${params.section}/new`} className="btn-primary">
             New Thread
@@ -66,7 +66,7 @@ export default async function ForumSection({ params }: { params: { section: stri
 
         {threads.length === 0 ? (
           <div className="card text-center py-12">
-            <p className="text-gray-500 mb-4">No discussions yet. Start one!</p>
+            <p className="text-[#9b9b9b] mb-4">No discussions yet. Start one!</p>
             <Link href={`/forum/${params.section}/new`} className="btn-primary inline-block">
               Create First Thread
             </Link>
@@ -77,18 +77,18 @@ export default async function ForumSection({ params }: { params: { section: stri
               <Link
                 key={thread.id}
                 href={`/forum/${params.section}/${thread.id}`}
-                className="card block hover:shadow-lg transition-shadow"
+                className="card block hover:border-primary"
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">{thread.title}</h3>
-                    <p className="text-sm text-gray-600">
+                    <h3 className="text-xl font-bold text-white mb-2">{thread.title}</h3>
+                    <p className="text-sm text-[#9b9b9b]">
                       {thread.posts.length} {thread.posts.length === 1 ? 'reply' : 'replies'}
-                      {' • '}
+                      {' \u2022 '}
                       Started {new Date(thread.createdAt).toLocaleDateString()}
                     </p>
                   </div>
-                  <div className="text-primary text-xl">→</div>
+                  <div className="text-primary text-xl">&rarr;</div>
                 </div>
               </Link>
             ))}

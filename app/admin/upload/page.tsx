@@ -122,14 +122,14 @@ export default function UploadDocument() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-primary text-white shadow-lg">
+    <div className="min-h-screen bg-secondary">
+      <header className="bg-accent text-white shadow-lg">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold">Upload Document</h1>
-            <nav className="flex gap-4">
-              <Link href="/dashboard" className="hover:underline">Dashboard</Link>
-              <Link href="/admin" className="hover:underline">Admin</Link>
+            <h1 className="text-2xl font-bold"><span className="text-primary">Upload</span> Document</h1>
+            <nav className="flex gap-6">
+              <Link href="/dashboard" className="text-white hover:text-primary transition-colors">Dashboard</Link>
+              <Link href="/admin" className="text-white hover:text-primary transition-colors">Admin</Link>
             </nav>
           </div>
         </div>
@@ -137,23 +137,23 @@ export default function UploadDocument() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6">
-          <Link href="/admin" className="text-primary hover:underline">
-            ← Back to Admin Panel
+          <Link href="/admin" className="text-primary hover:text-white transition-colors">
+            &larr; Back to Admin Panel
           </Link>
-          <h2 className="text-3xl font-bold text-gray-800 mt-2">Upload Document</h2>
+          <h2 className="text-3xl font-bold text-white mt-2">Upload Document</h2>
         </div>
 
         <div className="card max-w-2xl">
           <form onSubmit={handleSubmit}>
             <div className="mb-6">
-              <label htmlFor="section" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="section" className="block text-sm font-medium text-white mb-2">
                 Section *
               </label>
               <select
                 id="section"
                 value={section}
                 onChange={(e) => setSection(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-4 py-3 bg-white border border-white text-black focus:ring-2 focus:ring-primary focus:border-transparent"
               >
                 {ALL_SECTIONS.map((s) => (
                   <option key={s} value={s}>
@@ -161,13 +161,13 @@ export default function UploadDocument() {
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-[#9b9b9b] mt-1">
                 Select which section can access this document
               </p>
             </div>
 
             <div className="mb-6">
-              <label htmlFor="file" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="file" className="block text-sm font-medium text-white mb-2">
                 PDF File *
               </label>
               <input
@@ -175,49 +175,49 @@ export default function UploadDocument() {
                 id="file"
                 accept=".pdf"
                 onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-4 py-3 bg-white border border-white text-black focus:ring-2 focus:ring-primary focus:border-transparent"
                 disabled={extracting}
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-[#9b9b9b] mt-1">
                 Only PDF files are accepted
               </p>
             </div>
 
             {file && (
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-700">
+              <div className="mb-6 p-4 bg-dark border border-accent">
+                <p className="text-sm text-white">
                   <strong>Selected file:</strong> {file.name}
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-[#9b9b9b]">
                   Size: {(file.size / 1024).toFixed(2)} KB
                 </p>
               </div>
             )}
 
             <div className="mb-6">
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-                Description {extracting && <span className="text-blue-600">(Auto-extracting...)</span>}
+              <label htmlFor="description" className="block text-sm font-medium text-white mb-2">
+                Description {extracting && <span className="text-primary">(Auto-extracting...)</span>}
               </label>
               <textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-4 py-3 bg-white border border-white text-black focus:ring-2 focus:ring-primary focus:border-transparent"
                 placeholder="Description will be auto-extracted when you select a PDF..."
                 disabled={extracting}
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-[#9b9b9b] mt-1">
                 {extracting ? (
-                  <span className="text-blue-600">⏳ AI is reading your PDF and generating a smart description...</span>
+                  <span className="text-primary">AI is reading your PDF and generating a smart description...</span>
                 ) : file && extractionMethod ? (
                   extractionMethod === 'openai' || extractionMethod === 'gemini' ? (
-                    <span className="text-green-600">
-                      ✓ AI-generated description using {extractionMethod === 'openai' ? 'OpenAI' : 'Gemini'}. Feel free to edit or leave as-is.
+                    <span className="text-green-400">
+                      AI-generated description using {extractionMethod === 'openai' ? 'OpenAI' : 'Gemini'}. Feel free to edit or leave as-is.
                     </span>
                   ) : (
-                    <span className="text-yellow-600">
-                      ℹ️ Auto-generated from {extractionMethod === 'metadata' ? 'PDF metadata' : 'filename'} (AI not available). Feel free to edit.
+                    <span className="text-yellow-400">
+                      Auto-generated from {extractionMethod === 'metadata' ? 'PDF metadata' : 'filename'} (AI not available). Feel free to edit.
                     </span>
                   )
                 ) : (
@@ -227,13 +227,13 @@ export default function UploadDocument() {
             </div>
 
             {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+              <div className="mb-6 p-4 bg-red-900/30 border border-red-600 text-red-300">
                 {error}
               </div>
             )}
 
             {success && (
-              <div className="mb-6 p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg">
+              <div className="mb-6 p-4 bg-primary/20 border border-primary text-white">
                 Document uploaded successfully! It will be available to {section} members with watermarking.
               </div>
             )}
@@ -253,15 +253,15 @@ export default function UploadDocument() {
           </form>
         </div>
 
-        <div className="mt-6 max-w-2xl bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-semibold text-blue-900 mb-2">🤖 Smart Upload Features</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>• <strong>AI Descriptions:</strong> OpenAI or Gemini reads your PDF and generates helpful descriptions automatically</li>
-            <li>• <strong>Editable:</strong> Review and edit any auto-generated description before uploading</li>
-            <li>• <strong>Fallback:</strong> If AI is unavailable, extracts from PDF metadata or filename (clearly labeled)</li>
-            <li>• <strong>Setup:</strong> Set <code className="bg-blue-100 px-1 rounded">OPENAI_API_KEY</code> or <code className="bg-blue-100 px-1 rounded">GEMINI_API_KEY</code> to enable AI</li>
-            <li>• <strong>S3 Storage:</strong> Files stored in section-specific buckets (HOA, Condo1-4)</li>
-            <li>• <strong>Watermarking:</strong> All downloads are watermarked with user info</li>
+        <div className="mt-6 max-w-2xl bg-accent border-l-4 border-primary p-4">
+          <h3 className="font-semibold text-white mb-2">Smart Upload Features</h3>
+          <ul className="text-sm text-[#9b9b9b] space-y-1">
+            <li>&bull; <strong className="text-white">AI Descriptions:</strong> OpenAI or Gemini reads your PDF and generates helpful descriptions automatically</li>
+            <li>&bull; <strong className="text-white">Editable:</strong> Review and edit any auto-generated description before uploading</li>
+            <li>&bull; <strong className="text-white">Fallback:</strong> If AI is unavailable, extracts from PDF metadata or filename (clearly labeled)</li>
+            <li>&bull; <strong className="text-white">Setup:</strong> Set <code className="bg-dark px-1">OPENAI_API_KEY</code> or <code className="bg-dark px-1">GEMINI_API_KEY</code> to enable AI</li>
+            <li>&bull; <strong className="text-white">S3 Storage:</strong> Files stored in section-specific buckets (HOA, Condo1-4)</li>
+            <li>&bull; <strong className="text-white">Watermarking:</strong> All downloads are watermarked with user info</li>
           </ul>
         </div>
       </main>

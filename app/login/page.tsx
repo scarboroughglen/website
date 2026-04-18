@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Navbar from '@/app/components/Navbar'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -36,20 +37,22 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary via-secondary to-accent flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+    <div className="min-h-screen bg-secondary">
+      <Navbar />
+      <div className="flex items-center justify-center p-4 pt-32 min-h-screen">
+      <div className="bg-accent p-8 max-w-md w-full border border-accent hover:border-primary transition-colors">
         <h1 className="text-3xl font-bold text-primary mb-6 text-center">
           Resident Login
         </h1>
 
         {!sent ? (
           <form onSubmit={handleSubmit}>
-            <p className="text-gray-600 mb-6 text-center">
+            <p className="text-[#9b9b9b] mb-6 text-center">
               Enter your email to receive a magic login link
             </p>
 
             <div className="mb-6">
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-white mb-2">
                 Email Address
               </label>
               <input
@@ -58,13 +61,13 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-4 py-3 bg-white border border-white text-black focus:ring-2 focus:ring-primary focus:border-transparent"
                 placeholder="your.email@example.com"
               />
             </div>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+              <div className="mb-4 p-3 bg-red-900/30 border border-red-600 text-red-300 text-sm">
                 {error}
               </div>
             )}
@@ -79,31 +82,32 @@ export default function Login() {
           </form>
         ) : (
           <div className="text-center">
-            <div className="text-green-600 text-5xl mb-4">✓</div>
-            <h2 className="text-2xl font-semibold mb-4">Check Your Email</h2>
-            <p className="text-gray-600 mb-6">
-              We&apos;ve sent a login link to <strong>{email}</strong>. Click the link in the email to sign in.
+            <div className="text-primary text-5xl mb-4">&#10003;</div>
+            <h2 className="text-2xl font-semibold text-white mb-4">Check Your Email</h2>
+            <p className="text-[#9b9b9b] mb-6">
+              We&apos;ve sent a login link to <strong className="text-white">{email}</strong>. Click the link in the email to sign in.
             </p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-[#9b9b9b]">
               The link expires in 15 minutes.
             </p>
           </div>
         )}
 
         <div className="mt-6 text-center">
-          <Link href="/" className="text-primary hover:underline text-sm">
-            ← Back to Home
+          <Link href="/" className="text-primary hover:text-white text-sm transition-colors">
+            &larr; Back to Home
           </Link>
         </div>
 
         <div className="mt-4 text-center">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-[#9b9b9b]">
             New resident?{' '}
-            <Link href="/invite" className="text-primary hover:underline font-medium">
+            <Link href="/invite" className="text-primary hover:text-white font-medium transition-colors">
               Sign up with invite code
             </Link>
           </p>
         </div>
+      </div>
       </div>
     </div>
   )

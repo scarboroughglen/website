@@ -18,17 +18,17 @@ export default async function ForumIndex() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-primary text-white shadow-lg">
+    <div className="min-h-screen bg-secondary">
+      <header className="bg-accent text-white shadow-lg">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold">Forums</h1>
-            <nav className="flex gap-4">
-              <Link href="/dashboard" className="hover:underline">Dashboard</Link>
-              <Link href="/forum" className="hover:underline">Forums</Link>
-              <Link href="/documents" className="hover:underline">Documents</Link>
+            <h1 className="text-2xl font-bold"><span className="text-primary">Forums</span></h1>
+            <nav className="flex gap-6">
+              <Link href="/dashboard" className="text-white hover:text-primary transition-colors">Dashboard</Link>
+              <Link href="/forum" className="text-primary font-medium">Forums</Link>
+              <Link href="/documents" className="text-white hover:text-primary transition-colors">Documents</Link>
               {user.isAdmin && (
-                <Link href="/admin" className="hover:underline">Admin</Link>
+                <Link href="/admin" className="text-white hover:text-primary transition-colors">Admin</Link>
               )}
             </nav>
           </div>
@@ -36,31 +36,31 @@ export default async function ForumIndex() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <h2 className="text-3xl font-bold text-gray-800 mb-6">Discussion Forums</h2>
+        <h2 className="text-3xl font-bold text-white mb-6">Discussion Forums</h2>
 
         <div className="space-y-4">
           {sections.map((section) => (
             <div
               key={section.id}
-              className={`card ${section.accessible ? 'cursor-pointer hover:shadow-lg transition-shadow' : 'opacity-50'}`}
+              className={`card ${section.accessible ? 'cursor-pointer hover:border-primary' : 'opacity-50'}`}
             >
               {section.accessible ? (
                 <Link href={`/forum/${section.id}`} className="block">
                   <div className="flex justify-between items-center">
                     <div>
                       <h3 className="text-xl font-bold text-primary">{section.name}</h3>
-                      <p className="text-gray-600">{section.description}</p>
+                      <p className="text-[#9b9b9b]">{section.description}</p>
                     </div>
-                    <div className="text-primary">→</div>
+                    <div className="text-primary text-xl">&rarr;</div>
                   </div>
                 </Link>
               ) : (
                 <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="text-xl font-bold text-gray-400">{section.name}</h3>
-                    <p className="text-gray-400">{section.description}</p>
+                    <h3 className="text-xl font-bold text-[#9b9b9b]">{section.name}</h3>
+                    <p className="text-[#9b9b9b]">{section.description}</p>
                   </div>
-                  <div className="text-gray-400">🔒</div>
+                  <div className="text-[#9b9b9b]">Locked</div>
                 </div>
               )}
             </div>

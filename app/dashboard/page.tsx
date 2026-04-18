@@ -36,26 +36,28 @@ export default async function Dashboard() {
   })
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-secondary">
       {/* Header */}
-      <header className="bg-primary text-white shadow-lg">
+      <header className="bg-accent text-white shadow-lg">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold">Scarborough Glen HOA</h1>
-              <p className="text-sm opacity-90">
+              <h1 className="text-2xl font-bold">
+                <span className="text-primary">Scarborough Glen</span> HOA
+              </h1>
+              <p className="text-sm text-[#9b9b9b]">
                 {user.unit.condo} - Unit {user.unit.unitNumber}
               </p>
             </div>
-            <nav className="flex gap-4 items-center">
-              <Link href="/dashboard" className="hover:underline">Dashboard</Link>
-              <Link href="/forum" className="hover:underline">Forums</Link>
-              <Link href="/documents" className="hover:underline">Documents</Link>
+            <nav className="flex gap-6 items-center">
+              <Link href="/dashboard" className="text-primary font-medium">Dashboard</Link>
+              <Link href="/forum" className="text-white hover:text-primary transition-colors">Forums</Link>
+              <Link href="/documents" className="text-white hover:text-primary transition-colors">Documents</Link>
               {user.isAdmin && (
-                <Link href="/admin" className="hover:underline">Admin</Link>
+                <Link href="/admin" className="text-white hover:text-primary transition-colors">Admin</Link>
               )}
               <form action="/api/auth/logout" method="POST">
-                <button type="submit" className="hover:underline">Logout</button>
+                <button type="submit" className="text-white hover:text-primary transition-colors">Logout</button>
               </form>
             </nav>
           </div>
@@ -65,17 +67,19 @@ export default async function Dashboard() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-800 mb-2">Welcome, {user.email}</h2>
-          <p className="text-gray-600">Your resident portal for Scarborough Glen community</p>
+          <h2 className="text-3xl font-bold text-white mb-2">Welcome, {user.email}</h2>
+          <p className="text-[#9b9b9b]">Your resident portal for Scarborough Glen community</p>
         </div>
 
         {/* Quick Stats */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           <div className="card">
             <div className="flex items-center gap-4">
-              <div className="text-4xl">🏘️</div>
+              <div className="w-16 h-16">
+                <img src="/images/icons/house.svg" alt="" className="w-full h-full" />
+              </div>
               <div>
-                <p className="text-gray-600 text-sm">Your Unit</p>
+                <p className="text-[#9b9b9b] text-sm">Your Unit</p>
                 <p className="text-2xl font-bold text-primary">
                   {user.unit.condo} - {user.unit.unitNumber}
                 </p>
@@ -85,20 +89,24 @@ export default async function Dashboard() {
 
           <div className="card">
             <div className="flex items-center gap-4">
-              <div className="text-4xl">💬</div>
+              <div className="w-16 h-16">
+                <img src="/images/icons/care.svg" alt="" className="w-full h-full" />
+              </div>
               <div>
-                <p className="text-gray-600 text-sm">Forum Access</p>
-                <p className="text-lg font-semibold">HOA + {user.unit.condo}</p>
+                <p className="text-[#9b9b9b] text-sm">Forum Access</p>
+                <p className="text-lg font-semibold text-white">HOA + {user.unit.condo}</p>
               </div>
             </div>
           </div>
 
           <div className="card">
             <div className="flex items-center gap-4">
-              <div className="text-4xl">📁</div>
+              <div className="w-16 h-16">
+                <img src="/images/icons/property.svg" alt="" className="w-full h-full" />
+              </div>
               <div>
-                <p className="text-gray-600 text-sm">Documents</p>
-                <p className="text-lg font-semibold">{recentDocuments.length} Available</p>
+                <p className="text-[#9b9b9b] text-sm">Documents</p>
+                <p className="text-lg font-semibold text-white">{recentDocuments.length} Available</p>
               </div>
             </div>
           </div>
@@ -108,25 +116,25 @@ export default async function Dashboard() {
         <div className="grid md:grid-cols-2 gap-6">
           {/* Recent Forum Posts */}
           <div className="card">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Recent Forum Discussions</h3>
+            <h3 className="text-xl font-bold text-white mb-4">Recent Forum Discussions</h3>
             {recentThreads.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No discussions yet</p>
+              <p className="text-[#9b9b9b] text-center py-8">No discussions yet</p>
             ) : (
               <div className="space-y-3">
                 {recentThreads.map((thread) => (
                   <Link
                     key={thread.id}
                     href={`/forum/${thread.section.toLowerCase()}/${thread.id}`}
-                    className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                    className="block p-3 bg-secondary hover:bg-dark transition-colors border border-secondary hover:border-primary"
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="font-semibold text-gray-800">{thread.title}</p>
-                        <p className="text-sm text-gray-600">
-                          {thread.section} • {thread.posts.length} {thread.posts.length === 1 ? 'reply' : 'replies'}
+                        <p className="font-semibold text-white">{thread.title}</p>
+                        <p className="text-sm text-[#9b9b9b]">
+                          {thread.section} &bull; {thread.posts.length} {thread.posts.length === 1 ? 'reply' : 'replies'}
                         </p>
                       </div>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-[#9b9b9b]">
                         {new Date(thread.createdAt).toLocaleDateString()}
                       </span>
                     </div>
@@ -141,24 +149,24 @@ export default async function Dashboard() {
 
           {/* Recent Documents */}
           <div className="card">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Recent Documents</h3>
+            <h3 className="text-xl font-bold text-white mb-4">Recent Documents</h3>
             {recentDocuments.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No documents yet</p>
+              <p className="text-[#9b9b9b] text-center py-8">No documents yet</p>
             ) : (
               <div className="space-y-3">
                 {recentDocuments.map((doc) => (
                   <div
                     key={doc.id}
-                    className="p-3 bg-gray-50 rounded-lg"
+                    className="p-3 bg-secondary border border-secondary"
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="font-semibold text-gray-800">{doc.filename}</p>
-                        <p className="text-sm text-gray-600">{doc.section}</p>
+                        <p className="font-semibold text-white">{doc.filename}</p>
+                        <p className="text-sm text-[#9b9b9b]">{doc.section}</p>
                       </div>
                       <a
                         href={`/api/documents/download/${doc.id}`}
-                        className="text-primary hover:underline text-sm"
+                        className="text-primary hover:text-white text-sm transition-colors"
                       >
                         Download
                       </a>

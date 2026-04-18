@@ -265,3 +265,102 @@ export function isForensicsConfigured(): boolean {
   const configDir = join(homedir(), '.forensics-pdf-mcp')
   return existsSync(join(configDir, 'key_id.txt')) && existsSync(join(configDir, 'private_key.pem'))
 }
+
+/**
+ * Call an arbitrary MCP tool on the forensics server and return the parsed result.
+ * Used by the sync script to invoke sync_drive/list_synced_documents without
+ * duplicating the MCP session/signing logic.
+ */
+export async function callMcpTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  timeoutMs = 600_000
+): Promise<unknown> {
+  const { serverUrl, keyId, privateKey } = loadConfig()
+  const base = serverUrl.replace(/\/$/, '')
+
+  // Initialize MCP session
+  const initBodyBytes = Buffer.from(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      id: 0,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-03-26',
+        capabilities: {},
+        clientInfo: { name: 'hoa-sync-client', version: '1.0.0' },
+      },
+    }),
+    'utf8'
+  )
+
+  const initResp = await fetch(`${base}/mcp/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json, text/event-stream',
+      ...buildAuthHeaders(initBodyBytes, keyId, privateKey),
+    },
+    body: initBodyBytes,
+    signal: AbortSignal.timeout(30_000),
+  })
+
+  if (!initResp.ok) {
+    throw new Error(`MCP initialize failed: ${initResp.status} ${initResp.statusText}`)
+  }
+
+  const sessionId = initResp.headers.get('mcp-session-id')
+
+  // Call tool
+  const toolBodyBytes = Buffer.from(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: {
+        name: toolName,
+        arguments: args,
+      },
+    }),
+    'utf8'
+  )
+
+  const toolHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json, text/event-stream',
+    ...buildAuthHeaders(toolBodyBytes, keyId, privateKey),
+  }
+  if (sessionId) toolHeaders['Mcp-Session-Id'] = sessionId
+
+  const toolResp = await fetch(`${base}/mcp/`, {
+    method: 'POST',
+    headers: toolHeaders,
+    body: toolBodyBytes,
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+
+  if (!toolResp.ok) {
+    throw new Error(`MCP ${toolName} failed: ${toolResp.status} ${toolResp.statusText}`)
+  }
+
+  if (!toolResp.body) {
+    throw new Error('MCP response has no body')
+  }
+
+  // Read SSE stream for final result
+  for await (const msg of readSseStream(toolResp.body as ReadableStream<Uint8Array>)) {
+    if (msg.method === 'notifications/progress' || msg.method === 'notifications/message') {
+      continue
+    }
+    if (msg.id === 1) {
+      if (msg.error) throw new Error(`MCP RPC error: ${JSON.stringify(msg.error)}`)
+      const content = msg.result?.content?.[0]
+      if (!content || content.type !== 'text') {
+        throw new Error(`Unexpected MCP response: ${JSON.stringify(msg).slice(0, 200)}`)
+      }
+      return JSON.parse(content.text)
+    }
+  }
+
+  throw new Error('MCP stream ended without a final result')
+}

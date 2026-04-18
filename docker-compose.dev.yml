@@ -17,7 +17,6 @@ services:
       - .:/app
       - ./data:/app/data
       - /app/node_modules
-      - /app/.next
     environment:
       - DATABASE_URL=file:/app/data/dev.db
       - NODE_ENV=development
@@ -28,4 +27,4 @@ services:
       - https_proxy=${https_proxy}
       - no_proxy=${no_proxy}
       - NODE_TLS_REJECT_UNAUTHORIZED=0
-    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run dev"
+    entrypoint: sh -c "npx prisma generate && npx prisma migrate deploy && npx next dev"

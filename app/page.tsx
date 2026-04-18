@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getCurrentUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
+import Navbar from '@/app/components/Navbar'
 
 export default async function Home({
   searchParams,
@@ -16,64 +17,94 @@ export default async function Home({
   const showLogoutMessage = searchParams.logout === 'success'
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary via-secondary to-accent">
-      <div className="container mx-auto px-4 py-16">
-        <div className="max-w-4xl mx-auto text-center text-white">
-          {showLogoutMessage && (
-            <div className="mb-6 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg">
-              ✓ You&apos;ve been successfully logged out. See you next time!
-            </div>
-          )}
-          <h1 className="text-5xl font-bold mb-6">
-            Welcome to Scarborough Glen
-          </h1>
-          <h2 className="text-3xl mb-8">
-            Homeowners Association Portal
-          </h2>
-          <p className="text-xl mb-12 opacity-90">
-            A private community platform for residents to connect, share information, and stay informed.
-          </p>
+    <div className="min-h-screen bg-secondary relative">
+      <Navbar />
 
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 mb-8">
-            <h3 className="text-2xl font-semibold mb-4">Community Features</h3>
-            <div className="grid md:grid-cols-3 gap-6 text-left">
-              <div className="bg-white/10 p-6 rounded-lg">
-                <div className="text-4xl mb-3">💬</div>
-                <h4 className="font-semibold mb-2">Private Forums</h4>
-                <p className="text-sm opacity-80">
-                  Connect with neighbors in HOA-wide and condo-specific discussion forums
-                </p>
-              </div>
-              <div className="bg-white/10 p-6 rounded-lg">
-                <div className="text-4xl mb-3">📁</div>
-                <h4 className="font-semibold mb-2">Secure Documents</h4>
-                <p className="text-sm opacity-80">
-                  Access important documents with personalized watermarking for security
-                </p>
-              </div>
-              <div className="bg-white/10 p-6 rounded-lg">
-                <div className="text-4xl mb-3">🔒</div>
-                <h4 className="font-semibold mb-2">Invite-Only Access</h4>
-                <p className="text-sm opacity-80">
-                  Secure access limited to verified residents with unique invite codes
-                </p>
+      {/* Hero Section with Background Image */}
+      <div className="relative min-h-screen flex flex-col">
+        <div className="absolute inset-0 z-0">
+          <img
+            src="/images/hero-bg.jpg"
+            alt=""
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black/50"></div>
+        </div>
+
+        {/* Hero Content */}
+        <div className="relative z-10 flex-1 flex items-center pt-20">
+          <div className="container mx-auto px-4">
+            <div className="max-w-3xl mx-auto text-center text-white">
+              {showLogoutMessage && (
+                <div className="mb-6 bg-primary text-white px-6 py-4 shadow-lg">
+                  You&apos;ve been successfully logged out. See you next time!
+                </div>
+              )}
+              <h2 className="text-5xl font-bold mb-6">
+                Welcome to <br /><span className="text-primary">Scarborough Glen</span>
+              </h2>
+              <h3 className="text-2xl mb-4 font-light">
+                Homeowners Association Portal
+              </h3>
+              <p className="text-lg mb-12 text-white/80">
+                A private community platform for residents to connect, share information, and stay informed.
+              </p>
+
+              <div className="flex gap-4 justify-center mb-16">
+                <Link href="/login" className="btn-primary text-lg">
+                  Resident Login
+                </Link>
+                <Link href="/invite" className="btn-secondary text-lg">
+                  New Resident? Sign Up
+                </Link>
               </div>
             </div>
           </div>
+        </div>
 
-          <div className="flex gap-4 justify-center">
-            <Link href="/login" className="btn-primary">
-              Resident Login
-            </Link>
-            <Link href="/invite" className="btn-secondary">
-              New Resident? Sign Up
-            </Link>
+        {/* Features Section */}
+        <div className="relative z-10 pb-16">
+          <div className="container mx-auto px-4">
+            <div className="max-w-5xl mx-auto">
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="card">
+                  <div className="text-primary text-4xl mb-4">
+                    <img src="/images/icons/care.svg" alt="" className="w-16 h-16" />
+                  </div>
+                  <h4 className="text-xl font-bold text-white mb-2">Private Forums</h4>
+                  <p className="text-[#9b9b9b]">
+                    Connect with neighbors in HOA-wide and condo-specific discussion forums
+                  </p>
+                </div>
+                <div className="card">
+                  <div className="text-primary text-4xl mb-4">
+                    <img src="/images/icons/property.svg" alt="" className="w-16 h-16" />
+                  </div>
+                  <h4 className="text-xl font-bold text-white mb-2">Secure Documents</h4>
+                  <p className="text-[#9b9b9b]">
+                    Access important documents with personalized watermarking for security
+                  </p>
+                </div>
+                <div className="card">
+                  <div className="text-primary text-4xl mb-4">
+                    <img src="/images/icons/inspection.svg" alt="" className="w-16 h-16" />
+                  </div>
+                  <h4 className="text-xl font-bold text-white mb-2">Invite-Only Access</h4>
+                  <p className="text-[#9b9b9b]">
+                    Secure access limited to verified residents with unique invite codes
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <footer className="text-center text-white/80 py-8">
-        <p>&copy; 2024 Scarborough Glen HOA. All rights reserved.</p>
+      {/* Footer */}
+      <footer className="bg-primary py-6">
+        <div className="container mx-auto px-4 text-center text-white">
+          <p>&copy; 2024 Scarborough Glen HOA. All rights reserved.</p>
+        </div>
       </footer>
     </div>
   )
