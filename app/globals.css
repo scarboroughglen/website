@@ -157,6 +157,14 @@ body {
   .mobile-nav-toggle {
     display: none;
   }
+
+  .mobile-nav {
+    display: none;
+  }
+
+  .mobile-nav-overlay {
+    display: none;
+  }
 }
 
 /* Mobile Navigation */

@@ -60,8 +60,8 @@ export default function Navbar() {
                 </svg>
               </a>
               <ul className={`dropdown-menu ${dropdownOpen ? 'show' : ''}`}>
-                <li><Link href="/forum" onClick={() => setDropdownOpen(false)}>Forums</Link></li>
-                <li><Link href="/documents" onClick={() => setDropdownOpen(false)}>Documents</Link></li>
+                <li><Link href="/forum" prefetch={false} onClick={() => setDropdownOpen(false)}>Forums</Link></li>
+                <li><Link href="/documents" prefetch={false} onClick={() => setDropdownOpen(false)}>Documents</Link></li>
               </ul>
             </li>
             <li className={isActive('/login') || isActive('/dashboard') ? 'active' : ''}>
@@ -124,10 +124,10 @@ export default function Navbar() {
             {dropdownOpen && (
               <ul className="mobile-dropdown">
                 <li>
-                  <Link href="/forum" onClick={() => setMobileOpen(false)}>Forums</Link>
+                  <Link href="/forum" prefetch={false} onClick={() => setMobileOpen(false)}>Forums</Link>
                 </li>
                 <li>
-                  <Link href="/documents" onClick={() => setMobileOpen(false)}>Documents</Link>
+                  <Link href="/documents" prefetch={false} onClick={() => setMobileOpen(false)}>Documents</Link>
                 </li>
               </ul>
             )}
